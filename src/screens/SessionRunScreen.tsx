@@ -9,6 +9,7 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 import { TimerDisplay } from '@/components/TimerDisplay';
 
 // Hooks
+import { useCountdownTicker } from '@/hooks/useCountdownTicker';
 import { useKeepAwake } from '@/hooks/useKeepAwake';
 import { useMediaSession } from '@/hooks/useMediaSession';
 import { useSound } from '@/hooks/useSound';
@@ -153,43 +154,13 @@ export const SessionRunScreen = ({ route, navigation }: ScreenProps<'SessionRun'
     return null;
   }, [config.restSeconds, engine.currentRound, engine.phase, engine.status, session]);
 
-  useEffect(() => {
-    if (
-      engine.status !== 'running' ||
-      (engine.phase !== 'work' && engine.phase !== 'rest') ||
-      engine.phaseStartedAt === null
-    ) {
-      return;
-    }
-
-    const phaseStartedAt = engine.phaseStartedAt;
-    const duration = engine.phaseDurationSeconds;
-    const timeouts: number[] = [];
-
-    // Schedule one tick at each whole-second boundary of the final 10s, anchored
-    // to phaseStartedAt — the same clock the display uses. This keeps the beat
-    // exactly 1000 ms apart instead of drifting with a polling interval.
-    for (let mark = Math.min(10, Math.floor(duration)); mark >= 1; mark -= 1) {
-      // The display flips to `mark` once elapsed reaches duration - mark.
-      const fireAt = phaseStartedAt + (duration - mark) * 1000;
-      const delay = fireAt - Date.now();
-
-      // Skip boundaries already well past (e.g. after resuming mid-countdown)
-      // so we don't replay a burst of stale ticks at once.
-      if (delay < -250) {
-        continue;
-      }
-
-      const id = window.setTimeout(() => {
-        void play('tick', { vibrate: false });
-      }, Math.max(0, delay));
-      timeouts.push(id);
-    }
-
-    return () => {
-      timeouts.forEach((id) => window.clearTimeout(id));
-    };
-  }, [engine.phase, engine.phaseDurationSeconds, engine.phaseStartedAt, engine.status, play]);
+  useCountdownTicker({
+    enabled: isFocused,
+    phase: engine.phase,
+    status: engine.status,
+    phaseStartedAt: engine.phaseStartedAt,
+    phaseDurationSeconds: engine.phaseDurationSeconds,
+  });
 
   if (!session) {
     return (
