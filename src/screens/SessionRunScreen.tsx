@@ -1,5 +1,5 @@
 // Core
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 // App
 import { useSessions } from '@/app/SessionsProvider';
@@ -10,6 +10,7 @@ import { TimerDisplay } from '@/components/TimerDisplay';
 
 // Hooks
 import { useKeepAwake } from '@/hooks/useKeepAwake';
+import { useMediaSession } from '@/hooks/useMediaSession';
 import { useSound } from '@/hooks/useSound';
 import { useTimerEngine } from '@/hooks/useTimerEngine';
 
@@ -21,6 +22,9 @@ import { defaultSettings, settingsStorage } from '@/storage/settingsStorage';
 
 // Theme
 import { useTheme } from '@/theme/ThemeProvider';
+
+// Utils
+import { formatSecondsToClock } from '@/utils/timeFormat';
 
 const toGradient = (colors: readonly string[]): string =>
   `linear-gradient(135deg, ${colors.join(', ')})`;
@@ -79,6 +83,38 @@ export const SessionRunScreen = ({ route, navigation }: ScreenProps<'SessionRun'
 
   useKeepAwake(isFocused && keepAwakeEnabled);
 
+  useMediaSession({
+    enabled: isFocused && !!session,
+    title: session?.name ?? 'Box Timer',
+    phase: engine.phase,
+    status: engine.status,
+    currentRound: engine.currentRound,
+    totalRounds: session?.rounds ?? 1,
+    remainingSeconds: engine.remainingSeconds,
+    phaseDurationSeconds: engine.phaseDurationSeconds,
+    canSkip:
+      (engine.status === 'running' || engine.status === 'paused') &&
+      (engine.phase === 'work' || engine.phase === 'rest'),
+    onPlay: () => {
+      if (engine.status === 'paused') {
+        engine.resume();
+      } else if (engine.status === 'finished') {
+        engine.repeat();
+      } else if (engine.status === 'idle') {
+        engine.start();
+      }
+    },
+    onPause: engine.pause,
+    onStop: engine.reset,
+    onSkip: () => {
+      if (engine.phase === 'work') {
+        engine.skipRound();
+      } else if (engine.phase === 'rest') {
+        engine.skipRest();
+      }
+    },
+  });
+
   const isCriticalCountdown =
     engine.status === 'running' &&
     (engine.phase === 'work' || engine.phase === 'rest') &&
@@ -109,15 +145,13 @@ export const SessionRunScreen = ({ route, navigation }: ScreenProps<'SessionRun'
     if (engine.phase === 'work') {
       const isLastRound = engine.currentRound >= session.rounds;
       if (isLastRound || config.restSeconds <= 0) return 'UP NEXT: Finish';
-      return `UP NEXT: Rest (${session.restSeconds}s)`;
+      return `UP NEXT: Rest (${formatSecondsToClock(session.restSeconds)})`;
     }
     if (engine.phase === 'rest') {
-      return `UP NEXT: Round ${engine.currentRound + 1} — Work (${session.workSeconds}s)`;
+      return `UP NEXT: Round ${engine.currentRound + 1} - Work (${formatSecondsToClock(session.workSeconds)})`;
     }
     return null;
   }, [config.restSeconds, engine.currentRound, engine.phase, engine.status, session]);
-
-  const lastTickSecondRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (
@@ -125,30 +159,35 @@ export const SessionRunScreen = ({ route, navigation }: ScreenProps<'SessionRun'
       (engine.phase !== 'work' && engine.phase !== 'rest') ||
       engine.phaseStartedAt === null
     ) {
-      lastTickSecondRef.current = null;
       return;
     }
 
     const phaseStartedAt = engine.phaseStartedAt;
-    const intervalId = window.setInterval(() => {
-      const elapsed = (Date.now() - phaseStartedAt) / 1000;
-      const exactRemaining = engine.phaseDurationSeconds - elapsed;
-      const secondMark = Math.ceil(exactRemaining);
+    const duration = engine.phaseDurationSeconds;
+    const timeouts: number[] = [];
 
-      if (secondMark > 10 || secondMark <= 0) {
-        return;
-      }
-      if (lastTickSecondRef.current === secondMark) {
-        return;
+    // Schedule one tick at each whole-second boundary of the final 10s, anchored
+    // to phaseStartedAt — the same clock the display uses. This keeps the beat
+    // exactly 1000 ms apart instead of drifting with a polling interval.
+    for (let mark = Math.min(10, Math.floor(duration)); mark >= 1; mark -= 1) {
+      // The display flips to `mark` once elapsed reaches duration - mark.
+      const fireAt = phaseStartedAt + (duration - mark) * 1000;
+      const delay = fireAt - Date.now();
+
+      // Skip boundaries already well past (e.g. after resuming mid-countdown)
+      // so we don't replay a burst of stale ticks at once.
+      if (delay < -250) {
+        continue;
       }
 
-      lastTickSecondRef.current = secondMark;
-      void play('tick', { vibrate: false });
-    }, 80);
+      const id = window.setTimeout(() => {
+        void play('tick', { vibrate: false });
+      }, Math.max(0, delay));
+      timeouts.push(id);
+    }
 
     return () => {
-      window.clearInterval(intervalId);
-      lastTickSecondRef.current = null;
+      timeouts.forEach((id) => window.clearTimeout(id));
     };
   }, [engine.phase, engine.phaseDurationSeconds, engine.phaseStartedAt, engine.status, play]);
 
@@ -165,7 +204,7 @@ export const SessionRunScreen = ({ route, navigation }: ScreenProps<'SessionRun'
           flex: 1,
         }}
       >
-        <p style={{ color: theme.colors.text }}>Session not found</p>
+        <p style={{ color: theme.colors.text, fontWeight: 800 }}>Session not found</p>
         <PrimaryButton label="Back" onPress={() => navigation.goBack()} />
       </div>
     );
@@ -178,10 +217,10 @@ export const SessionRunScreen = ({ route, navigation }: ScreenProps<'SessionRun'
   const showSkipRound = (engine.status === 'running' || engine.status === 'paused') && engine.phase === 'work';
   const showSkipRest = (engine.status === 'running' || engine.status === 'paused') && engine.phase === 'rest';
 
-  const lightModeBase = [theme.colors.background, '#E8F0FF', '#DCE8FF'] as const;
-  const lightModeRest = ['#E8F8F0', '#D7F1E4', '#C7EAD8'] as const;
-  const lightModeWorkCritical = ['#FFEDEE', '#FFDCDC', '#FFCCCC'] as const;
-  const lightModeRestCritical = ['#EAF9F0', '#D4F3E2', '#BEECD4'] as const;
+  const lightModeBase = [theme.colors.background, '#EEF3FA', '#E8EEF7'] as const;
+  const lightModeRest = ['#F2FAF6', '#E5F5EE', '#D8EFE6'] as const;
+  const lightModeWorkCritical = ['#FFF3F4', '#FFE6EA', '#FFD6DD'] as const;
+  const lightModeRestCritical = ['#F0FBF6', '#DFF6EA', '#CFEFDB'] as const;
 
   const gradientColors = theme.isDark
     ? isRestCritical
@@ -189,8 +228,8 @@ export const SessionRunScreen = ({ route, navigation }: ScreenProps<'SessionRun'
       : isWorkCritical
         ? ['#2D1017', '#3A121C', '#591A27']
         : isRestPhase
-          ? ['#0A1D17', '#0F2E24', '#1A4637']
-          : [theme.colors.background, '#0A1C3E', '#132446']
+          ? ['#0C111D', '#10261E', '#17382B']
+          : [theme.colors.background, '#111827', '#172033']
     : isRestCritical
       ? [...lightModeRestCritical]
       : isWorkCritical
@@ -199,14 +238,15 @@ export const SessionRunScreen = ({ route, navigation }: ScreenProps<'SessionRun'
           ? [...lightModeRest]
           : [...lightModeBase];
 
-  const controlBtnStyle = { flex: 1, minHeight: 72 };
+  const controlBtnStyle = { minHeight: 58 };
+  const phaseAccent = isRestPhase ? theme.colors.success : isWorkCritical ? theme.colors.danger : theme.colors.primary;
 
   return (
     <div
       className="app-shell"
       style={{
         background: toGradient(gradientColors),
-        padding: '54px 16px 20px',
+        padding: '42px 14px 18px',
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'space-between',
@@ -214,26 +254,73 @@ export const SessionRunScreen = ({ route, navigation }: ScreenProps<'SessionRun'
         minHeight: '100%',
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-        <PrimaryButton label="Back" variant="secondary" onPress={() => navigation.goBack()} />
+      <div
+        style={{
+          borderWidth: 1,
+          borderStyle: 'solid',
+          borderColor: theme.colors.border,
+          backgroundColor: theme.colors.card,
+          borderRadius: 8,
+          padding: 14,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          boxShadow: theme.isDark ? 'none' : '0 12px 30px rgba(17, 24, 39, 0.06)',
+        }}
+      >
+        <PrimaryButton label="Back" variant="secondary" size="sm" onPress={() => navigation.goBack()} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div
+            style={{
+              fontSize: 12,
+              fontWeight: 900,
+              letterSpacing: 1.1,
+              color: phaseAccent,
+            }}
+          >
+            LIVE SESSION
+          </div>
+          <div
+            style={{
+              marginTop: 2,
+              fontSize: 20,
+              fontWeight: 950,
+              color: theme.colors.text,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}
+          >
+            {session.name}
+          </div>
+        </div>
         <span
           style={{
-            flex: 1,
-            fontSize: 21,
+            borderWidth: 1,
+            borderStyle: 'solid',
+            borderColor: theme.colors.border,
+            borderRadius: 999,
+            padding: '7px 10px',
+            backgroundColor: theme.colors.surface,
+            fontSize: 12,
             fontWeight: 900,
-            textAlign: 'center',
-            marginRight: 86,
-            color: theme.colors.text,
+            color: theme.colors.textMuted,
             whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
           }}
         >
-          {session.name}
+          {Math.min(engine.currentRound, session.rounds)} / {session.rounds}
         </span>
       </div>
 
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div
+        style={{
+          flex: 1,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '18px 0',
+        }}
+      >
         <TimerDisplay
           phase={engine.phase}
           remainingSeconds={engine.remainingSeconds}
@@ -245,37 +332,61 @@ export const SessionRunScreen = ({ route, navigation }: ScreenProps<'SessionRun'
         />
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        <div style={{ display: 'flex', gap: 12 }}>
-          <PrimaryButton label="Stop" variant="secondary" onPress={engine.reset} style={controlBtnStyle} />
-          {showStart ? <PrimaryButton label="Start" onPress={engine.start} style={controlBtnStyle} /> : null}
-          {showPause ? <PrimaryButton label="Pause" onPress={engine.pause} style={controlBtnStyle} /> : null}
-          {showResume ? <PrimaryButton label="Resume" onPress={engine.resume} style={controlBtnStyle} /> : null}
-          {showRepeat ? (
-            <PrimaryButton label="Repeat Session" onPress={engine.repeat} style={controlBtnStyle} />
-          ) : null}
-        </div>
-
-        {showSkipRound ? (
-          <PrimaryButton label="Skip Round (3s)" variant="secondary" onPress={engine.skipRound} />
-        ) : null}
-        {showSkipRest ? (
-          <PrimaryButton label="Skip Rest (3s)" variant="secondary" onPress={engine.skipRest} />
-        ) : null}
-
+      <div
+        style={{
+          borderWidth: 1,
+          borderStyle: 'solid',
+          borderColor: theme.colors.border,
+          backgroundColor: theme.colors.card,
+          borderRadius: 8,
+          padding: 14,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 12,
+          boxShadow: theme.isDark ? 'none' : '0 12px 30px rgba(17, 24, 39, 0.08)',
+        }}
+      >
         {nextPhaseText ? (
-          <p
+          <div
             style={{
-              margin: 0,
+              borderWidth: 1,
+              borderStyle: 'solid',
+              borderColor: theme.colors.border,
+              borderRadius: 8,
+              backgroundColor: theme.colors.surface,
+              padding: '11px 12px',
               textAlign: 'center',
-              fontSize: 15,
-              fontWeight: 700,
-              letterSpacing: 1,
+              fontSize: 13,
+              fontWeight: 900,
+              letterSpacing: 0.6,
               color: theme.colors.textMuted,
             }}
           >
             {nextPhaseText}
-          </p>
+          </div>
+        ) : null}
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: 10 }}>
+          <PrimaryButton label="Stop" variant="secondary" onPress={engine.reset} style={controlBtnStyle} />
+          {showStart ? (
+            <PrimaryButton label="Start" onPress={engine.start} size="lg" style={controlBtnStyle} />
+          ) : null}
+          {showPause ? (
+            <PrimaryButton label="Pause" onPress={engine.pause} size="lg" style={controlBtnStyle} />
+          ) : null}
+          {showResume ? (
+            <PrimaryButton label="Resume" onPress={engine.resume} size="lg" style={controlBtnStyle} />
+          ) : null}
+          {showRepeat ? (
+            <PrimaryButton label="Repeat" onPress={engine.repeat} size="lg" style={controlBtnStyle} />
+          ) : null}
+        </div>
+
+        {showSkipRound ? (
+          <PrimaryButton label="Skip round to 3s" variant="secondary" onPress={engine.skipRound} />
+        ) : null}
+        {showSkipRest ? (
+          <PrimaryButton label="Skip rest to 3s" variant="secondary" onPress={engine.skipRest} />
         ) : null}
       </div>
     </div>

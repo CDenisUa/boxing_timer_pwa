@@ -1,5 +1,5 @@
 // Core
-import { CSSProperties, memo } from 'react';
+import { memo } from 'react';
 
 // Components
 import { SemiCircularProgress } from '@/components/SemiCircularProgress';
@@ -40,6 +40,14 @@ const toClockParts = (totalSeconds: number) => {
   };
 };
 
+const toClockText = (totalSeconds: number) => {
+  const parts = toClockParts(totalSeconds);
+  if (parts.hrs !== '00') {
+    return `${parts.hrs}:${parts.mins}:${parts.secs}`;
+  }
+  return `${parts.mins}:${parts.secs}`;
+};
+
 const TimerDisplayComponent = ({
   phase,
   remainingSeconds,
@@ -50,7 +58,7 @@ const TimerDisplayComponent = ({
   restColor = '#2FB874',
 }: Props) => {
   const { theme } = useTheme();
-  const parts = toClockParts(remainingSeconds);
+  const clockText = toClockText(remainingSeconds);
   const phaseColor = isCritical
     ? criticalColor
     : phase === 'work'
@@ -58,92 +66,89 @@ const TimerDisplayComponent = ({
       : phase === 'rest'
         ? restColor
         : theme.colors.textMuted;
-  const secondColor = isCritical ? criticalColor : phase === 'rest' ? restColor : theme.colors.primary;
-  const cardBorder = isCritical ? criticalColor : theme.colors.border;
   const roundBorder = isCritical ? criticalColor : theme.colors.border;
   const roundBackground = isCritical ? `${criticalColor}22` : theme.colors.surface;
-
-  const timeCardStyle: CSSProperties = {
-    width: 104,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    borderWidth: 1,
-    borderStyle: 'solid',
-    borderColor: cardBorder,
-    borderRadius: 18,
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: '12px 0',
-    gap: 4,
-    boxShadow: '0 8px 12px rgba(191,210,255,0.14)',
-  };
-
-  const timeValueStyle: CSSProperties = { fontSize: 40, fontWeight: 900, lineHeight: 1.05 };
-  const unitStyle: CSSProperties = {
-    fontSize: 14,
-    fontWeight: 700,
-    letterSpacing: 1.1,
-    color: theme.colors.textMuted,
-  };
+  const progressPercent = Math.round(Math.min(1, Math.max(0, phaseProgress)) * 100);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 22 }}>
-      {(phase === 'work' || phase === 'rest') && (
-        <div style={{ marginBottom: -18 }}>
+    <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 18 }}>
+      <div
+        style={{
+          width: '100%',
+          maxWidth: 388,
+          borderWidth: 1,
+          borderStyle: 'solid',
+          borderColor: roundBorder,
+          borderRadius: 8,
+          backgroundColor: theme.colors.card,
+          padding: '24px 18px 22px',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 18,
+          boxShadow: theme.colors.shadow,
+        }}
+      >
+        <div
+          style={{
+            minHeight: 34,
+            borderRadius: 999,
+            borderWidth: 1,
+            borderStyle: 'solid',
+            borderColor: roundBorder,
+            backgroundColor: roundBackground,
+            padding: '0 14px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: phaseColor,
+            fontSize: 13,
+            fontWeight: 900,
+            letterSpacing: 1.4,
+          }}
+        >
+          {phaseLabel[phase]}
+        </div>
+
+        {(phase === 'work' || phase === 'rest') && (
           <SemiCircularProgress
             progress={phaseProgress}
             color={phaseColor}
             trackColor={theme.colors.surfaceMuted}
-            size={270}
-            strokeWidth={11}
+            size={252}
+            strokeWidth={12}
           />
-        </div>
-      )}
-      <span style={{ fontSize: 42, fontWeight: 900, letterSpacing: 1.8, color: phaseColor }}>
-        {phaseLabel[phase]}
-      </span>
+        )}
 
-      <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-        <div style={timeCardStyle}>
-          <span style={{ ...timeValueStyle, color: theme.colors.text }}>{parts.hrs}</span>
-          <span style={unitStyle}>HRS</span>
-        </div>
-
-        <span style={{ fontSize: 40, lineHeight: '40px', marginTop: -10, color: theme.colors.textMuted }}>
-          :
-        </span>
-
-        <div style={timeCardStyle}>
-          <span style={{ ...timeValueStyle, color: theme.colors.text }}>{parts.mins}</span>
-          <span style={unitStyle}>MIN</span>
+        <div
+          style={{
+            marginTop: phase === 'work' || phase === 'rest' ? -62 : 0,
+            textAlign: 'center',
+            color: isCritical ? criticalColor : theme.colors.text,
+            fontSize: clockText.length > 5 ? 58 : 76,
+            fontWeight: 950,
+            lineHeight: 0.95,
+            fontVariantNumeric: 'tabular-nums',
+          }}
+        >
+          {clockText}
         </div>
 
-        <span style={{ fontSize: 40, lineHeight: '40px', marginTop: -10, color: theme.colors.textMuted }}>
-          :
-        </span>
-
-        <div style={timeCardStyle}>
-          <span style={{ ...timeValueStyle, color: secondColor }}>{parts.secs}</span>
-          <span style={unitStyle}>SEC</span>
+        <div
+          style={{
+            width: '100%',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: 12,
+            color: theme.colors.textMuted,
+            fontSize: 13,
+            fontWeight: 800,
+          }}
+        >
+          <span>{roundLabel}</span>
+          <span>{progressPercent}%</span>
         </div>
-      </div>
-
-      <div
-        style={{
-          minHeight: 54,
-          borderRadius: 27,
-          borderWidth: 1,
-          borderStyle: 'solid',
-          padding: '0 24px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          backgroundColor: roundBackground,
-          borderColor: roundBorder,
-        }}
-      >
-        <span style={{ fontSize: 19, fontWeight: 800, color: theme.colors.text }}>{roundLabel}</span>
       </div>
     </div>
   );

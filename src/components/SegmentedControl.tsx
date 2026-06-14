@@ -36,16 +36,16 @@ function SegmentedControlComponent<T extends string>({
         borderWidth: 1,
         borderStyle: 'solid',
         borderColor: theme.colors.border,
-        backgroundColor: theme.colors.surface,
-        borderRadius: 18,
+        backgroundColor: theme.colors.surfaceStrong,
+        borderRadius: 8,
         padding: 4,
         display: 'flex',
         flexDirection: 'column',
-        gap: 10,
+        gap: 6,
       }}
     >
       {rows.map((row, rowIndex) => (
-        <div key={`row-${rowIndex}`} style={{ display: 'flex', gap: 10 }}>
+        <div key={`row-${rowIndex}`} style={{ display: 'flex', gap: 6 }}>
           {row.map((option) => {
             const active = option.value === value;
             return (
@@ -55,22 +55,23 @@ function SegmentedControlComponent<T extends string>({
                 onClick={() => onChange(option.value)}
                 style={{
                   flex: 1,
-                  minHeight: 44,
-                  borderRadius: 14,
+                  minHeight: 40,
+                  borderRadius: 6,
                   borderWidth: 1,
                   borderStyle: 'solid',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  padding: '0 8px',
-                  fontWeight: 700,
-                  fontSize: 15,
+                  padding: '0 10px',
+                  fontWeight: 800,
+                  fontSize: 14,
                   whiteSpace: 'nowrap',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
-                  backgroundColor: active ? theme.colors.primary : 'transparent',
-                  borderColor: active ? 'transparent' : theme.colors.border,
-                  color: active ? theme.colors.primaryText : theme.colors.textMuted,
+                  backgroundColor: active ? theme.colors.card : 'transparent',
+                  borderColor: active ? theme.colors.borderStrong : 'transparent',
+                  color: active ? theme.colors.text : theme.colors.textMuted,
+                  boxShadow: active ? '0 1px 2px rgba(15, 23, 42, 0.08)' : 'none',
                 }}
               >
                 {option.label}

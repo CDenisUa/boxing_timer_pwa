@@ -21,6 +21,7 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overscroll-behavior: none;
+  text-rendering: optimizeLegibility;
 }
 
 #root {
@@ -54,10 +55,25 @@ select {
   font-family: inherit;
 }
 
+input::placeholder {
+  color: currentColor;
+  opacity: 0.48;
+}
+
 input:focus,
 select:focus,
 button:focus-visible {
   outline: none;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  box-shadow: 0 0 0 3px rgba(110, 168, 255, 0.32);
+}
+
+button:active {
+  transform: translateY(1px);
 }
 
 /* Hide scrollbars but keep scrolling where needed. */

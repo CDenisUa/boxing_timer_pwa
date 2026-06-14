@@ -20,134 +20,155 @@ type Props = {
   onDelete: () => void;
 };
 
-const categoryTone = {
-  boxing: '#2E65E8',
-  running: '#8A5DE8',
-  custom: '#2AB58D',
+const categoryMeta = {
+  boxing: { label: 'Boxing', tone: '#2258D8' },
+  running: { label: 'Running', tone: '#7C5CE6' },
+  custom: { label: 'Custom', tone: '#159A6C' },
 } as const;
 
 const SessionCardComponent = ({ session, onPress, onEdit, onDelete }: Props) => {
   const { theme } = useTheme();
+  const meta = categoryMeta[session.category];
+  const totalWorkSeconds = session.workSeconds * session.rounds;
+  const totalRestSeconds = session.restSeconds * Math.max(0, session.rounds - 1);
+  const totalDuration = totalWorkSeconds + totalRestSeconds;
+
+  const metricStyle = {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: 2,
+    minWidth: 0,
+  };
+
+  const metricLabelStyle = {
+    fontSize: 11,
+    fontWeight: 900,
+    letterSpacing: 0.8,
+    color: theme.colors.textSubtle,
+    textTransform: 'uppercase' as const,
+  };
+
+  const metricValueStyle = {
+    fontSize: 15,
+    fontWeight: 900,
+    color: theme.colors.text,
+    fontVariantNumeric: 'tabular-nums' as const,
+  };
 
   return (
     <div
-      onClick={onPress}
       style={{
         borderWidth: 1,
         borderStyle: 'solid',
         borderColor: theme.colors.border,
         backgroundColor: theme.colors.card,
-        borderRadius: 24,
-        padding: 16,
+        borderRadius: 8,
+        padding: 14,
         display: 'flex',
         flexDirection: 'column',
-        gap: 16,
-        cursor: 'pointer',
+        gap: 14,
+        boxShadow: theme.isDark ? 'none' : '0 12px 28px rgba(17, 24, 39, 0.07)',
       }}
     >
-      <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-        <div
-          style={{
-            width: 48,
-            height: 48,
-            borderRadius: 14,
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            backgroundColor: theme.colors.surfaceStrong,
-          }}
-        >
-          <div
-            style={{
-              width: 16,
-              height: 16,
-              borderRadius: 8,
-              backgroundColor: categoryTone[session.category],
-            }}
-          />
-        </div>
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
-          <span
-            style={{
-              fontSize: 16,
-              fontWeight: 800,
-              color: theme.colors.text,
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-            }}
-          >
-            {session.name}
-          </span>
-          <span
-            style={{
-              fontSize: 13,
-              fontWeight: 600,
-              letterSpacing: 0.4,
-              color: theme.colors.textMuted,
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-            }}
-          >
-            {session.category.toUpperCase()} • {session.rounds} ROUNDS
-          </span>
-        </div>
-      </div>
-
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-        <div
-          style={{
-            flex: 1,
-            borderRadius: 14,
-            padding: 10,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 4,
-            minHeight: 76,
-            backgroundColor: theme.colors.surface,
-          }}
-        >
-          <span style={{ fontSize: 13, fontWeight: 700, letterSpacing: 0.8, color: theme.colors.textMuted }}>
-            WORK
-          </span>
-          <span style={{ fontSize: 17, fontWeight: 800, color: theme.colors.text }}>
-            {formatSecondsToClock(session.workSeconds)}
-          </span>
+      <button
+        type="button"
+        onClick={onPress}
+        style={{
+          width: '100%',
+          textAlign: 'left',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 14,
+          cursor: 'pointer',
+        }}
+      >
+        <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+          <div style={{ width: 5, alignSelf: 'stretch', borderRadius: 4, backgroundColor: meta.tone }} />
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'flex-start',
+                gap: 12,
+              }}
+            >
+              <div style={{ minWidth: 0 }}>
+                <div
+                  style={{
+                    fontSize: 18,
+                    fontWeight: 900,
+                    color: theme.colors.text,
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}
+                >
+                  {session.name}
+                </div>
+                <div style={{ marginTop: 4, fontSize: 13, fontWeight: 700, color: theme.colors.textMuted }}>
+                  {session.rounds} rounds - {formatSecondsToClock(totalDuration)}
+                </div>
+              </div>
+              <span
+                style={{
+                  borderWidth: 1,
+                  borderStyle: 'solid',
+                  borderColor: theme.colors.border,
+                  borderRadius: 999,
+                  padding: '5px 9px',
+                  backgroundColor: theme.colors.surface,
+                  color: meta.tone,
+                  fontSize: 12,
+                  fontWeight: 900,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {meta.label}
+              </span>
+            </div>
+          </div>
         </div>
 
         <div
           style={{
-            flex: 1,
-            borderRadius: 14,
-            padding: 10,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 4,
-            minHeight: 76,
-            backgroundColor: theme.colors.surface,
+            borderTopWidth: 1,
+            borderTopStyle: 'solid',
+            borderTopColor: theme.colors.border,
+            borderBottomWidth: 1,
+            borderBottomStyle: 'solid',
+            borderBottomColor: theme.colors.border,
+            padding: '12px 0',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+            gap: 12,
           }}
         >
-          <span style={{ fontSize: 13, fontWeight: 700, letterSpacing: 0.8, color: theme.colors.textMuted }}>
-            REST
-          </span>
-          <span style={{ fontSize: 17, fontWeight: 800, color: theme.colors.text }}>
-            {formatSecondsToClock(session.restSeconds)}
-          </span>
-        </div>
+          <div style={metricStyle}>
+            <span style={metricLabelStyle}>Work</span>
+            <span style={metricValueStyle}>
+              {formatSecondsToClock(session.workSeconds)}
+            </span>
+          </div>
 
-        <div style={{ width: 120, display: 'flex', alignItems: 'center' }} onClick={(e) => e.stopPropagation()}>
-          <PrimaryButton label="Start" onPress={onPress} style={{ width: '100%' }} />
-        </div>
-      </div>
+          <div style={metricStyle}>
+            <span style={metricLabelStyle}>Rest</span>
+            <span style={metricValueStyle}>
+              {formatSecondsToClock(session.restSeconds)}
+            </span>
+          </div>
 
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }} onClick={(e) => e.stopPropagation()}>
-        <div style={{ flex: 1, minWidth: 130 }}>
-          <PrimaryButton label="Edit" variant="secondary" onPress={onEdit} style={{ width: '100%' }} />
+          <div style={metricStyle}>
+            <span style={metricLabelStyle}>Total</span>
+            <span style={metricValueStyle}>{formatSecondsToClock(totalDuration)}</span>
+          </div>
         </div>
-        <div style={{ flex: 1, minWidth: 130 }}>
-          <PrimaryButton label="Delete" variant="danger" onPress={onDelete} style={{ width: '100%' }} />
-        </div>
+      </button>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr', gap: 8 }}>
+        <PrimaryButton label="Start" onPress={onPress} size="sm" />
+        <PrimaryButton label="Edit" variant="secondary" onPress={onEdit} size="sm" />
+        <PrimaryButton label="Delete" variant="ghost" onPress={onDelete} size="sm" />
       </div>
     </div>
   );

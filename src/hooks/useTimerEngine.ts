@@ -53,7 +53,7 @@ export const useTimerEngine = ({ config, onEvent }: Options) => {
         dispatchEvents(result.events);
         return result.snapshot;
       });
-    }, 250);
+    }, 100);
 
     return () => clearInterval(id);
   }, [dispatchEvents, snapshot.status]);

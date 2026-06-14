@@ -1,5 +1,5 @@
 // Core
-import { ChangeEvent, memo, useCallback } from 'react';
+import { ChangeEvent, memo, useCallback, useId } from 'react';
 
 // Theme
 import { useTheme } from '@/theme/ThemeProvider';
@@ -13,6 +13,7 @@ type Props = {
 
 const NumberFieldComponent = ({ label, value, onChange, min = 1 }: Props) => {
   const { theme } = useTheme();
+  const inputId = useId();
 
   const handleChange = useCallback(
     (event: ChangeEvent<HTMLInputElement>) => {
@@ -36,24 +37,27 @@ const NumberFieldComponent = ({ label, value, onChange, min = 1 }: Props) => {
         borderStyle: 'solid',
         borderColor: theme.colors.border,
         backgroundColor: theme.colors.card,
-        borderRadius: 20,
-        padding: 14,
+        borderRadius: 8,
+        padding: 16,
       }}
     >
-      <span
+      <label
+        htmlFor={inputId}
         style={{
           fontSize: 14,
-          fontWeight: 700,
+          fontWeight: 800,
           letterSpacing: 0.6,
           textTransform: 'uppercase',
           color: theme.colors.textMuted,
         }}
       >
         {label}
-      </span>
+      </label>
       <input
+        id={inputId}
         type="number"
         inputMode="numeric"
+        aria-label={label}
         value={String(value)}
         onChange={handleChange}
         style={{
@@ -61,11 +65,11 @@ const NumberFieldComponent = ({ label, value, onChange, min = 1 }: Props) => {
           borderWidth: 1,
           borderStyle: 'solid',
           borderColor: theme.colors.border,
-          backgroundColor: theme.colors.surface,
-          borderRadius: 14,
+          backgroundColor: theme.colors.input,
+          borderRadius: 8,
           padding: '0 14px',
           fontSize: 20,
-          fontWeight: 700,
+          fontWeight: 800,
           color: theme.colors.text,
         }}
       />

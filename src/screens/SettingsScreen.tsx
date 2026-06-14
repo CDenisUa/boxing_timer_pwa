@@ -33,6 +33,12 @@ const themeOptions: { label: string; value: ThemeMode }[] = [
   { label: 'Dark', value: 'dark' },
 ];
 
+const soundLabel = (label: string) =>
+  label
+    .replace('Boxing Gong (Default)', 'Boxing')
+    .replace('Classic Gong', 'Classic')
+    .replace('Gong (Legacy)', 'Gong');
+
 export const SettingsScreen = ({ navigation }: ScreenProps<'Settings'>) => {
   const { theme, mode, setMode } = useTheme();
   const { applySoundToAll } = useSessions();
@@ -79,34 +85,72 @@ export const SettingsScreen = ({ navigation }: ScreenProps<'Settings'>) => {
   };
 
   const soundSegmentOptions = useMemo(
-    () => soundOptions.map((option) => ({ label: option.label, value: option.id })),
+    () => soundOptions.map((option) => ({ label: soundLabel(option.label), value: option.id })),
     [],
   );
 
-  const labelStyle = { fontSize: 13, fontWeight: 600, color: theme.colors.textMuted };
+  const labelStyle = {
+    fontSize: 12,
+    fontWeight: 900,
+    letterSpacing: 1.1,
+    textTransform: 'uppercase' as const,
+    color: theme.colors.textMuted,
+  };
+
+  const sectionStyle = {
+    borderWidth: 1,
+    borderStyle: 'solid' as const,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.card,
+    borderRadius: 8,
+    padding: 16,
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: 12,
+    boxShadow: theme.isDark ? 'none' : '0 12px 28px rgba(17, 24, 39, 0.06)',
+  };
 
   return (
     <div
       className="app-shell scroll-area"
       style={{
         backgroundColor: theme.colors.background,
-        padding: '54px 16px 24px',
+        padding: '42px 14px 24px',
         display: 'flex',
         flexDirection: 'column',
-        gap: 14,
+        gap: 12,
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 2 }}>
-        <PrimaryButton label="Back" variant="secondary" onPress={() => navigation.goBack()} />
-        <h1 style={{ margin: 0, fontSize: 22, fontWeight: 900, color: theme.colors.text }}>Settings</h1>
+      <div
+        style={{
+          borderWidth: 1,
+          borderStyle: 'solid',
+          borderColor: theme.colors.border,
+          backgroundColor: theme.colors.card,
+          borderRadius: 8,
+          padding: 14,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+        }}
+      >
+        <PrimaryButton label="Back" variant="secondary" size="sm" onPress={() => navigation.goBack()} />
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: 1.1, color: theme.colors.textMuted }}>
+            APP
+          </div>
+          <h1 style={{ margin: '2px 0 0', fontSize: 24, fontWeight: 950, color: theme.colors.text }}>
+            Settings
+          </h1>
+        </div>
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <div style={sectionStyle}>
         <span style={labelStyle}>Theme</span>
         <SegmentedControl value={mode} onChange={(next) => void setMode(next)} options={themeOptions} maxPerRow={3} />
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <div style={sectionStyle}>
         <span style={labelStyle}>Default Sound</span>
         <SegmentedControl
           value={defaultSoundId}
@@ -127,24 +171,31 @@ export const SettingsScreen = ({ navigation }: ScreenProps<'Settings'>) => {
           borderStyle: 'solid',
           borderColor: theme.colors.border,
           backgroundColor: theme.colors.card,
-          borderRadius: 10,
-          padding: 12,
+          borderRadius: 8,
+          padding: 16,
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
+          gap: 14,
           cursor: 'pointer',
+          boxShadow: theme.isDark ? 'none' : '0 12px 28px rgba(17, 24, 39, 0.06)',
         }}
       >
-        <span style={{ color: theme.colors.text, fontWeight: 600 }}>Keep screen awake</span>
+        <div>
+          <div style={{ color: theme.colors.text, fontWeight: 900 }}>Keep screen awake</div>
+          <div style={{ marginTop: 3, color: theme.colors.textMuted, fontSize: 13, fontWeight: 700 }}>
+            Prevent the display from sleeping during a session.
+          </div>
+        </div>
         <input
           type="checkbox"
           checked={keepScreenAwake}
           onChange={(event) => setKeepScreenAwake(event.target.checked)}
-          style={{ width: 22, height: 22, accentColor: theme.colors.primary }}
+          style={{ width: 24, height: 24, flex: '0 0 auto', accentColor: theme.colors.primary }}
         />
       </label>
 
-      <PrimaryButton label="Save Settings" onPress={save} />
+      <PrimaryButton label="Save settings" onPress={save} size="lg" />
     </div>
   );
 };

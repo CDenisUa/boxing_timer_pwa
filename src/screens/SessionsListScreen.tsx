@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react';
 import { useSessions } from '@/app/SessionsProvider';
 
 // Components
+import { PrimaryButton } from '@/components/PrimaryButton';
 import { SessionCard } from '@/components/SessionCard';
 
 // Navigation
@@ -49,32 +50,84 @@ export const SessionsListScreen = ({ navigation }: ScreenProps<'SessionsList'>) 
     });
   }, [activeFilter, search, sessions]);
 
+  const totalRounds = useMemo(
+    () => sessions.reduce((sum, session) => sum + session.rounds, 0),
+    [sessions],
+  );
+
   return (
     <div
       className="app-shell scroll-area"
       style={{
         backgroundColor: theme.colors.background,
-        padding: '54px 14px 12px',
+        padding: '42px 14px 12px',
+        gap: 16,
       }}
     >
       <div
         style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: 16,
+          borderWidth: 1,
+          borderStyle: 'solid',
+          borderColor: theme.colors.border,
+          backgroundColor: theme.colors.card,
+          borderRadius: 8,
+          padding: 16,
+          marginBottom: 14,
+          boxShadow: theme.isDark ? 'none' : '0 12px 30px rgba(17, 24, 39, 0.06)',
         }}
       >
-        <h1 style={{ margin: 0, fontSize: 22, fontWeight: 900, letterSpacing: 0.2, color: theme.colors.text }}>
-          My Sessions
-        </h1>
-        <button
-          type="button"
-          onClick={() => navigation.navigate('Settings')}
-          style={{ padding: '8px 10px', color: theme.colors.primary, fontWeight: 700 }}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 900, letterSpacing: 1.2, color: theme.colors.textMuted }}>
+              BOX TIMER
+            </div>
+            <h1
+              style={{
+                margin: '4px 0 0',
+                fontSize: 28,
+                fontWeight: 950,
+                lineHeight: 1,
+                color: theme.colors.text,
+              }}
+            >
+              Programs
+            </h1>
+          </div>
+          <PrimaryButton
+            label="Settings"
+            variant="secondary"
+            size="sm"
+            onPress={() => navigation.navigate('Settings')}
+          />
+        </div>
+
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+            gap: 10,
+            marginTop: 18,
+          }}
         >
-          Settings
-        </button>
+          {[
+            ['Saved', String(sessions.length)],
+            ['Rounds', String(totalRounds)],
+            ['Shown', String(filtered.length)],
+          ].map(([label, value]) => (
+            <div
+              key={label}
+              style={{
+                borderTopWidth: 1,
+                borderTopStyle: 'solid',
+                borderTopColor: theme.colors.border,
+                paddingTop: 10,
+              }}
+            >
+              <div style={{ fontSize: 12, fontWeight: 800, color: theme.colors.textMuted }}>{label}</div>
+              <div style={{ marginTop: 2, fontSize: 20, fontWeight: 950, color: theme.colors.text }}>{value}</div>
+            </div>
+          ))}
+        </div>
       </div>
 
       <div
@@ -82,29 +135,46 @@ export const SessionsListScreen = ({ navigation }: ScreenProps<'SessionsList'>) 
           borderWidth: 1,
           borderStyle: 'solid',
           borderColor: theme.colors.border,
-          backgroundColor: theme.colors.surfaceStrong,
-          borderRadius: 18,
-          padding: '0 14px',
+          backgroundColor: theme.colors.input,
+          borderRadius: 8,
+          padding: '0 12px',
           marginBottom: 12,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
         }}
       >
+        <span style={{ fontSize: 16, fontWeight: 900, color: theme.colors.textSubtle }}>Find</span>
         <input
           value={search}
           onChange={(event) => setSearch(event.target.value)}
           placeholder="Search saved workouts..."
           style={{
             width: '100%',
-            height: 52,
+            height: 48,
             border: 'none',
             background: 'transparent',
-            fontSize: 18,
-            fontWeight: 600,
+            fontSize: 16,
+            fontWeight: 700,
             color: theme.colors.text,
           }}
         />
       </div>
 
-      <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+          gap: 6,
+          marginBottom: 14,
+          borderWidth: 1,
+          borderStyle: 'solid',
+          borderColor: theme.colors.border,
+          backgroundColor: theme.colors.surfaceStrong,
+          borderRadius: 8,
+          padding: 4,
+        }}
+      >
         {filters.map((filter) => {
           const active = activeFilter === filter.value;
           return (
@@ -115,17 +185,17 @@ export const SessionsListScreen = ({ navigation }: ScreenProps<'SessionsList'>) 
               style={{
                 borderWidth: 1,
                 borderStyle: 'solid',
-                borderRadius: 20,
-                minHeight: 42,
-                minWidth: 86,
+                borderRadius: 6,
+                minHeight: 38,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                padding: '0 14px',
-                fontWeight: 700,
-                backgroundColor: active ? theme.colors.primary : theme.colors.surface,
-                borderColor: active ? 'transparent' : theme.colors.border,
-                color: active ? theme.colors.primaryText : theme.colors.textMuted,
+                padding: '0 6px',
+                fontWeight: 800,
+                fontSize: 13,
+                backgroundColor: active ? theme.colors.card : 'transparent',
+                borderColor: active ? theme.colors.borderStrong : 'transparent',
+                color: active ? theme.colors.text : theme.colors.textMuted,
               }}
             >
               {filter.label}
@@ -136,9 +206,34 @@ export const SessionsListScreen = ({ navigation }: ScreenProps<'SessionsList'>) 
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingBottom: 104 }}>
         {filtered.length === 0 ? (
-          <p style={{ textAlign: 'center', marginTop: 44, fontSize: 15, color: theme.colors.textMuted }}>
-            {isLoading ? 'Loading...' : 'No sessions found'}
-          </p>
+          <div
+            style={{
+              borderWidth: 1,
+              borderStyle: 'solid',
+              borderColor: theme.colors.border,
+              backgroundColor: theme.colors.card,
+              borderRadius: 8,
+              padding: 22,
+              marginTop: 10,
+              textAlign: 'center',
+            }}
+          >
+            <div style={{ fontSize: 20, fontWeight: 900, color: theme.colors.text }}>
+              {isLoading ? 'Loading programs' : 'No programs found'}
+            </div>
+            <div style={{ marginTop: 8, fontSize: 14, fontWeight: 700, color: theme.colors.textMuted }}>
+              {search || activeFilter !== 'all'
+                ? 'Try another search or filter.'
+                : 'Create your first boxing, running, or custom interval program.'}
+            </div>
+            {!isLoading && !search && activeFilter === 'all' ? (
+              <PrimaryButton
+                label="Create program"
+                onPress={() => navigation.navigate('SessionEditor')}
+                style={{ width: '100%', marginTop: 18 }}
+              />
+            ) : null}
+          </div>
         ) : (
           filtered.map((item) => (
             <SessionCard
@@ -164,17 +259,20 @@ export const SessionsListScreen = ({ navigation }: ScreenProps<'SessionsList'>) 
           position: 'fixed',
           right: 'max(18px, calc(50% - 240px + 18px))',
           bottom: 24,
-          width: 74,
-          height: 74,
-          borderRadius: 37,
+          width: 64,
+          height: 64,
+          borderRadius: 32,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           backgroundColor: theme.colors.primary,
           color: theme.colors.primaryText,
-          fontSize: 36,
-          lineHeight: '36px',
-          boxShadow: '0 8px 12px rgba(30,99,236,0.45)',
+          fontSize: 34,
+          lineHeight: '34px',
+          fontWeight: 600,
+          boxShadow: theme.isDark
+            ? '0 14px 30px rgba(110, 168, 255, 0.22)'
+            : '0 14px 30px rgba(34, 88, 216, 0.28)',
         }}
       >
         +

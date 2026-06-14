@@ -33,6 +33,12 @@ const categoryOptions: { label: string; value: SessionCategory }[] = [
   { label: 'Custom', value: 'custom' },
 ];
 
+const soundLabel = (label: string) =>
+  label
+    .replace('Boxing Gong (Default)', 'Boxing')
+    .replace('Classic Gong', 'Classic')
+    .replace('Gong (Legacy)', 'Gong');
+
 export const SessionEditorScreen = ({ navigation, route }: ScreenProps<'SessionEditor'>) => {
   const { theme } = useTheme();
   const { createSession, updateSession, getById } = useSessions();
@@ -104,11 +110,24 @@ export const SessionEditorScreen = ({ navigation, route }: ScreenProps<'SessionE
   };
 
   const labelStyle = {
-    fontSize: 17,
-    fontWeight: 800,
-    letterSpacing: 1,
+    fontSize: 12,
+    fontWeight: 900,
+    letterSpacing: 1.1,
     textTransform: 'uppercase' as const,
     color: theme.colors.textMuted,
+  };
+
+  const sectionStyle = {
+    borderWidth: 1,
+    borderStyle: 'solid' as const,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.card,
+    borderRadius: 8,
+    padding: 16,
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: 12,
+    boxShadow: theme.isDark ? 'none' : '0 12px 28px rgba(17, 24, 39, 0.06)',
   };
 
   return (
@@ -116,21 +135,47 @@ export const SessionEditorScreen = ({ navigation, route }: ScreenProps<'SessionE
       className="app-shell scroll-area"
       style={{
         backgroundColor: theme.colors.background,
-        padding: '54px 16px 24px',
+        padding: '42px 14px 24px',
         display: 'flex',
         flexDirection: 'column',
-        gap: 16,
+        gap: 12,
       }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-        <PrimaryButton label="Close" variant="secondary" onPress={() => navigation.goBack()} />
-        <h1 style={{ flex: 1, margin: 0, fontSize: 24, fontWeight: 900, textAlign: 'center', color: theme.colors.text }}>
-          Edit Workout
-        </h1>
-        <PrimaryButton label="Save" onPress={save} />
+      <div
+        style={{
+          borderWidth: 1,
+          borderStyle: 'solid',
+          borderColor: theme.colors.border,
+          backgroundColor: theme.colors.card,
+          borderRadius: 8,
+          padding: 14,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 10,
+        }}
+      >
+        <PrimaryButton label="Close" variant="secondary" size="sm" onPress={() => navigation.goBack()} />
+        <div style={{ flex: 1, minWidth: 0, textAlign: 'center' }}>
+          <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: 1.1, color: theme.colors.textMuted }}>
+            PROGRAM
+          </div>
+          <h1
+            style={{
+              margin: '2px 0 0',
+              fontSize: 22,
+              fontWeight: 950,
+              lineHeight: 1.05,
+              color: theme.colors.text,
+            }}
+          >
+            {current ? 'Edit workout' : 'New workout'}
+          </h1>
+        </div>
+        <PrimaryButton label="Save" size="sm" onPress={save} />
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={sectionStyle}>
         <span style={labelStyle}>Session Name</span>
         <input
           value={name}
@@ -141,37 +186,25 @@ export const SessionEditorScreen = ({ navigation, route }: ScreenProps<'SessionE
             borderWidth: 1,
             borderStyle: 'solid',
             borderColor: theme.colors.border,
-            backgroundColor: theme.colors.card,
-            borderRadius: 18,
+            backgroundColor: theme.colors.input,
+            borderRadius: 8,
             padding: '0 16px',
             fontSize: 17,
-            fontWeight: 700,
+            fontWeight: 800,
             color: theme.colors.text,
           }}
         />
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={sectionStyle}>
         <span style={labelStyle}>Category</span>
         <SegmentedControl value={category} onChange={setCategory} options={categoryOptions} maxPerRow={3} />
       </div>
 
-      <div
-        style={{
-          borderWidth: 1,
-          borderStyle: 'solid',
-          borderColor: theme.colors.border,
-          backgroundColor: theme.colors.card,
-          borderRadius: 22,
-          padding: 16,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-        }}
-      >
-        <div>
-          <div style={{ fontSize: 20, fontWeight: 800, color: theme.colors.text }}>Rounds</div>
-          <div style={{ fontSize: 15, fontWeight: 600, color: theme.colors.textMuted }}>Total cycles</div>
+      <div style={{ ...sectionStyle, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 20, fontWeight: 900, color: theme.colors.text }}>Rounds</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: theme.colors.textMuted }}>Total work cycles</div>
         </div>
 
         <div
@@ -180,12 +213,12 @@ export const SessionEditorScreen = ({ navigation, route }: ScreenProps<'SessionE
             borderStyle: 'solid',
             borderColor: theme.colors.border,
             backgroundColor: theme.colors.surface,
-            borderRadius: 18,
-            minHeight: 62,
-            padding: '0 8px',
+            borderRadius: 8,
+            minHeight: 52,
+            padding: 5,
             display: 'flex',
             alignItems: 'center',
-            gap: 10,
+            gap: 6,
           }}
         >
           <button
@@ -193,20 +226,20 @@ export const SessionEditorScreen = ({ navigation, route }: ScreenProps<'SessionE
             onClick={() => setRounds((value) => Math.max(1, value - 1))}
             style={{
               width: 44,
-              height: 44,
-              borderRadius: 12,
+              height: 42,
+              borderRadius: 6,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               fontSize: 26,
-              fontWeight: 700,
+              fontWeight: 900,
               backgroundColor: theme.colors.surfaceStrong,
               color: theme.colors.text,
             }}
           >
             -
           </button>
-          <span style={{ minWidth: 44, textAlign: 'center', fontSize: 21, fontWeight: 900, color: theme.colors.text }}>
+          <span style={{ minWidth: 44, textAlign: 'center', fontSize: 21, fontWeight: 950, color: theme.colors.text }}>
             {rounds}
           </span>
           <button
@@ -214,13 +247,13 @@ export const SessionEditorScreen = ({ navigation, route }: ScreenProps<'SessionE
             onClick={() => setRounds((value) => value + 1)}
             style={{
               width: 44,
-              height: 44,
-              borderRadius: 12,
+              height: 42,
+              borderRadius: 6,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               fontSize: 26,
-              fontWeight: 700,
+              fontWeight: 900,
               backgroundColor: theme.colors.surfaceStrong,
               color: theme.colors.text,
             }}
@@ -230,12 +263,20 @@ export const SessionEditorScreen = ({ navigation, route }: ScreenProps<'SessionE
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: 12 }}>
-        <TimeWheelField label="WORK" valueSeconds={workSeconds} onChange={setWorkSeconds} minSeconds={1} />
-        <TimeWheelField label="REST" valueSeconds={restSeconds} onChange={setRestSeconds} minSeconds={1} />
+      <div style={sectionStyle}>
+        <div>
+          <span style={labelStyle}>Timing</span>
+          <div style={{ marginTop: 4, fontSize: 14, fontWeight: 700, color: theme.colors.textMuted }}>
+            Set the active interval and recovery interval.
+          </div>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10 }}>
+          <TimeWheelField label="WORK" valueSeconds={workSeconds} onChange={setWorkSeconds} minSeconds={1} />
+          <TimeWheelField label="REST" valueSeconds={restSeconds} onChange={setRestSeconds} minSeconds={1} />
+        </div>
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={sectionStyle}>
         <span style={labelStyle}>Alert Sound</span>
         <SegmentedControl
           value={soundId}
@@ -243,7 +284,7 @@ export const SessionEditorScreen = ({ navigation, route }: ScreenProps<'SessionE
             setSoundId(next);
             void play(next, { vibrate: false });
           }}
-          options={soundOptions.map((option) => ({ label: option.label, value: option.id }))}
+          options={soundOptions.map((option) => ({ label: soundLabel(option.label), value: option.id }))}
           maxPerRow={3}
         />
       </div>
