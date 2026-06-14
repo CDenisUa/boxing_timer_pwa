@@ -1,10 +1,9 @@
 // Types
-import { TimerPhase, TimerStatus } from '@/types/models';
+import { RoundConfig, TimerPhase, TimerStatus } from '@/types/models';
 
 export type TimerConfig = {
-  rounds: number;
-  workSeconds: number;
-  restSeconds: number;
+  /** One entry per round, in order. `restSeconds` is the rest after that round. */
+  rounds: RoundConfig[];
   prepSeconds: number;
 };
 
@@ -24,16 +23,30 @@ export type TimerEvent = {
   phase: Extract<TimerPhase, 'work' | 'rest'>;
 };
 
-export const createInitialSnapshot = (config: TimerConfig): TimerSnapshot => ({
-  status: 'idle',
-  phase: config.prepSeconds > 0 ? 'prep' : 'work',
-  prepTargetPhase: 'work',
-  currentRound: 1,
-  remainingSeconds: config.prepSeconds > 0 ? config.prepSeconds : config.workSeconds,
-  phaseStartedAt: null,
-  phaseDurationSeconds: config.prepSeconds > 0 ? config.prepSeconds : config.workSeconds,
-  elapsedBeforePauseSeconds: 0,
-});
+const roundCount = (config: TimerConfig): number => config.rounds.length;
+
+/** Work duration for a 1-based round number. */
+const workOf = (config: TimerConfig, round: number): number =>
+  config.rounds[round - 1]?.workSeconds ?? 0;
+
+/** Rest-after duration for a 1-based round number. */
+const restOf = (config: TimerConfig, round: number): number =>
+  config.rounds[round - 1]?.restSeconds ?? 0;
+
+export const createInitialSnapshot = (config: TimerConfig): TimerSnapshot => {
+  const firstWork = workOf(config, 1);
+  const hasPrep = config.prepSeconds > 0;
+  return {
+    status: 'idle',
+    phase: hasPrep ? 'prep' : 'work',
+    prepTargetPhase: 'work',
+    currentRound: 1,
+    remainingSeconds: hasPrep ? config.prepSeconds : firstWork,
+    phaseStartedAt: null,
+    phaseDurationSeconds: hasPrep ? config.prepSeconds : firstWork,
+    elapsedBeforePauseSeconds: 0,
+  };
+};
 
 const toRemaining = (duration: number, elapsedSec: number): number => {
   const value = Math.ceil(duration - elapsedSec);
@@ -79,11 +92,11 @@ const startTargetFromPrep = (
   }
 
   if (snapshot.prepTargetPhase === 'rest') {
-    const next = beginPhase(snapshot, 'rest', now, config.restSeconds);
+    const next = beginPhase(snapshot, 'rest', now, restOf(config, snapshot.currentRound));
     return { snapshot: next, event: { type: 'phase_started', phase: 'rest' } };
   }
 
-  const next = beginPhase(snapshot, 'work', now, config.workSeconds);
+  const next = beginPhase(snapshot, 'work', now, workOf(config, snapshot.currentRound));
   return { snapshot: next, event: { type: 'phase_started', phase: 'work' } };
 };
 
@@ -97,21 +110,31 @@ const advancePhase = (
   }
 
   if (snapshot.phase === 'work') {
-    if (snapshot.currentRound >= config.rounds) {
+    const rest = restOf(config, snapshot.currentRound);
+
+    // A configured rest after the current round always plays — including after
+    // the final round, after which the session ends.
+    if (rest > 0) {
+      const next = beginPhase(snapshot, 'rest', now, rest);
+      return { snapshot: next, event: { type: 'phase_started', phase: 'rest' } };
+    }
+
+    if (snapshot.currentRound >= roundCount(config)) {
       return { snapshot: toFinished(snapshot) };
     }
 
-    if (config.restSeconds <= 0) {
-      const next = beginPhase(snapshot, 'work', now, config.workSeconds, snapshot.currentRound + 1);
-      return { snapshot: next, event: { type: 'phase_started', phase: 'work' } };
-    }
-
-    const next = beginPhase(snapshot, 'rest', now, config.restSeconds);
-    return { snapshot: next, event: { type: 'phase_started', phase: 'rest' } };
+    const nextRound = snapshot.currentRound + 1;
+    const next = beginPhase(snapshot, 'work', now, workOf(config, nextRound), nextRound);
+    return { snapshot: next, event: { type: 'phase_started', phase: 'work' } };
   }
 
   if (snapshot.phase === 'rest') {
-    const next = beginPhase(snapshot, 'work', now, config.workSeconds, snapshot.currentRound + 1);
+    if (snapshot.currentRound >= roundCount(config)) {
+      return { snapshot: toFinished(snapshot) };
+    }
+
+    const nextRound = snapshot.currentRound + 1;
+    const next = beginPhase(snapshot, 'work', now, workOf(config, nextRound), nextRound);
     return { snapshot: next, event: { type: 'phase_started', phase: 'work' } };
   }
 
@@ -136,8 +159,8 @@ export const startTimer = (
         status: 'running',
         phase: 'work',
         phaseStartedAt: now,
-        phaseDurationSeconds: config.workSeconds,
-        remainingSeconds: config.workSeconds,
+        phaseDurationSeconds: workOf(config, 1),
+        remainingSeconds: workOf(config, 1),
       },
       events: [{ type: 'phase_started', phase: 'work' }],
     };
@@ -193,23 +216,44 @@ export const skipWorkPhase = (
     return prev;
   }
 
-  const target: Extract<TimerPhase, 'rest' | 'finished'> =
-    prev.currentRound >= config.rounds ? 'finished' : 'rest';
+  const rest = restOf(config, prev.currentRound);
+  const isLastRound = prev.currentRound >= roundCount(config);
+
+  // What comes after the skipped work block: its rest, the next round, or end.
+  const target: Extract<TimerPhase, 'work' | 'rest' | 'finished'> =
+    rest > 0 ? 'rest' : isLastRound ? 'finished' : 'work';
+
+  // When skipping straight to the next round (no rest), advance the round number.
+  const targetRound = target === 'work' ? prev.currentRound + 1 : prev.currentRound;
 
   if (prepSeconds <= 0) {
     if (target === 'finished') {
       return toFinished(prev);
     }
 
+    if (target === 'rest') {
+      return {
+        ...prev,
+        phase: 'rest',
+        prepTargetPhase: 'work',
+        status: 'running',
+        phaseStartedAt: now,
+        phaseDurationSeconds: rest,
+        elapsedBeforePauseSeconds: 0,
+        remainingSeconds: rest,
+      };
+    }
+
     return {
       ...prev,
-      phase: 'rest',
+      phase: 'work',
       prepTargetPhase: 'work',
       status: 'running',
       phaseStartedAt: now,
-      phaseDurationSeconds: config.restSeconds,
+      phaseDurationSeconds: workOf(config, targetRound),
       elapsedBeforePauseSeconds: 0,
-      remainingSeconds: config.restSeconds,
+      remainingSeconds: workOf(config, targetRound),
+      currentRound: targetRound,
     };
   }
 
@@ -218,6 +262,7 @@ export const skipWorkPhase = (
     status: 'running',
     phase: 'prep',
     prepTargetPhase: target,
+    currentRound: targetRound,
     phaseStartedAt: now,
     phaseDurationSeconds: prepSeconds,
     elapsedBeforePauseSeconds: 0,
@@ -235,24 +280,24 @@ export const skipRestPhase = (
     return prev;
   }
 
-  const target: Extract<TimerPhase, 'work' | 'finished'> =
-    prev.currentRound >= config.rounds ? 'finished' : 'work';
+  // A rest after the final round just ends the session when skipped.
+  if (prev.currentRound >= roundCount(config)) {
+    return toFinished(prev);
+  }
+
+  const nextRound = prev.currentRound + 1;
 
   if (prepSeconds <= 0) {
-    if (target === 'finished') {
-      return toFinished(prev);
-    }
-
     return {
       ...prev,
       phase: 'work',
       prepTargetPhase: 'work',
       status: 'running',
       phaseStartedAt: now,
-      phaseDurationSeconds: config.workSeconds,
+      phaseDurationSeconds: workOf(config, nextRound),
       elapsedBeforePauseSeconds: 0,
-      remainingSeconds: config.workSeconds,
-      currentRound: prev.currentRound + 1,
+      remainingSeconds: workOf(config, nextRound),
+      currentRound: nextRound,
     };
   }
 
@@ -260,12 +305,12 @@ export const skipRestPhase = (
     ...prev,
     status: 'running',
     phase: 'prep',
-    prepTargetPhase: target,
+    prepTargetPhase: 'work',
     phaseStartedAt: now,
     phaseDurationSeconds: prepSeconds,
     elapsedBeforePauseSeconds: 0,
     remainingSeconds: prepSeconds,
-    currentRound: prev.currentRound + 1,
+    currentRound: nextRound,
   };
 };
 

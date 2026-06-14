@@ -9,6 +9,16 @@ export type SoundId =
   | 'tick'
   | 'chime';
 
+/**
+ * Per-round timing. `restSeconds` is the recovery interval that follows this
+ * round (0 = go straight to the next round / finish). When a session has a
+ * `roundsConfig`, these values override the uniform `workSeconds`/`restSeconds`.
+ */
+export type RoundConfig = {
+  workSeconds: number;
+  restSeconds: number;
+};
+
 export type Session = {
   id: string;
   name: string;
@@ -16,6 +26,8 @@ export type Session = {
   rounds: number;
   workSeconds: number;
   restSeconds: number;
+  /** Optional individual timing for each round. Length equals `rounds`. */
+  roundsConfig?: RoundConfig[];
   soundId: SoundId;
   createdAt: number;
   updatedAt: number;

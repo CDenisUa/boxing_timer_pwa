@@ -25,6 +25,7 @@ import { defaultSettings, settingsStorage } from '@/storage/settingsStorage';
 import { useTheme } from '@/theme/ThemeProvider';
 
 // Utils
+import { resolveRounds } from '@/utils/rounds';
 import { formatSecondsToClock } from '@/utils/timeFormat';
 
 const toGradient = (colors: readonly string[]): string =>
@@ -60,15 +61,18 @@ export const SessionRunScreen = ({ route, navigation }: ScreenProps<'SessionRun'
     };
   }, []);
 
-  const config = useMemo(
-    () => ({
-      rounds: session?.rounds ?? 1,
-      workSeconds: session?.workSeconds ?? 1,
-      restSeconds: session?.rounds === 1 ? 0 : session?.restSeconds ?? 1,
-      prepSeconds,
-    }),
-    [prepSeconds, session?.restSeconds, session?.rounds, session?.workSeconds],
+  const rounds = useMemo(
+    () =>
+      resolveRounds({
+        rounds: session?.rounds ?? 1,
+        workSeconds: session?.workSeconds ?? 1,
+        restSeconds: session?.restSeconds ?? 1,
+        roundsConfig: session?.roundsConfig,
+      }),
+    [session?.restSeconds, session?.rounds, session?.workSeconds, session?.roundsConfig],
   );
+
+  const config = useMemo(() => ({ rounds, prepSeconds }), [rounds, prepSeconds]);
 
   const engine = useTimerEngine({
     config,
@@ -90,7 +94,7 @@ export const SessionRunScreen = ({ route, navigation }: ScreenProps<'SessionRun'
     phase: engine.phase,
     status: engine.status,
     currentRound: engine.currentRound,
-    totalRounds: session?.rounds ?? 1,
+    totalRounds: rounds.length,
     remainingSeconds: engine.remainingSeconds,
     phaseDurationSeconds: engine.phaseDurationSeconds,
     canSkip:
@@ -143,16 +147,23 @@ export const SessionRunScreen = ({ route, navigation }: ScreenProps<'SessionRun'
   const nextPhaseText = useMemo(() => {
     if (!session || engine.status === 'idle' || engine.status === 'finished') return null;
     if (engine.phase === 'prep') return null;
+
+    const count = rounds.length;
+    const currentIndex = engine.currentRound - 1;
+    const nextWorkSeconds = rounds[engine.currentRound]?.workSeconds ?? 0;
+
     if (engine.phase === 'work') {
-      const isLastRound = engine.currentRound >= session.rounds;
-      if (isLastRound || config.restSeconds <= 0) return 'UP NEXT: Finish';
-      return `UP NEXT: Rest (${formatSecondsToClock(session.restSeconds)})`;
+      const restSeconds = rounds[currentIndex]?.restSeconds ?? 0;
+      if (restSeconds > 0) return `UP NEXT: Rest (${formatSecondsToClock(restSeconds)})`;
+      if (engine.currentRound >= count) return 'UP NEXT: Finish';
+      return `UP NEXT: Round ${engine.currentRound + 1} - Work (${formatSecondsToClock(nextWorkSeconds)})`;
     }
     if (engine.phase === 'rest') {
-      return `UP NEXT: Round ${engine.currentRound + 1} - Work (${formatSecondsToClock(session.workSeconds)})`;
+      if (engine.currentRound >= count) return 'UP NEXT: Finish';
+      return `UP NEXT: Round ${engine.currentRound + 1} - Work (${formatSecondsToClock(nextWorkSeconds)})`;
     }
     return null;
-  }, [config.restSeconds, engine.currentRound, engine.phase, engine.status, session]);
+  }, [engine.currentRound, engine.phase, engine.status, rounds, session]);
 
   useCountdownTicker({
     enabled: isFocused,
@@ -295,7 +306,7 @@ export const SessionRunScreen = ({ route, navigation }: ScreenProps<'SessionRun'
         <TimerDisplay
           phase={engine.phase}
           remainingSeconds={engine.remainingSeconds}
-          roundLabel={`Round ${Math.min(engine.currentRound, session.rounds)} / ${session.rounds}`}
+          roundLabel={`Round ${Math.min(engine.currentRound, rounds.length)} / ${rounds.length}`}
           isCritical={isCriticalCountdown}
           phaseProgress={phaseProgress}
           criticalColor={isRestPhase ? '#2FB874' : '#F05454'}

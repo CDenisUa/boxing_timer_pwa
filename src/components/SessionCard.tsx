@@ -11,6 +11,7 @@ import { useTheme } from '@/theme/ThemeProvider';
 import { Session } from '@/types/models';
 
 // Utils
+import { isUniformRounds, resolveRounds, sumRounds } from '@/utils/rounds';
 import { formatSecondsToClock } from '@/utils/timeFormat';
 
 type Props = {
@@ -29,9 +30,15 @@ const categoryMeta = {
 const SessionCardComponent = ({ session, onPress, onEdit, onDelete }: Props) => {
   const { theme } = useTheme();
   const meta = categoryMeta[session.category];
-  const totalWorkSeconds = session.workSeconds * session.rounds;
-  const totalRestSeconds = session.restSeconds * Math.max(0, session.rounds - 1);
-  const totalDuration = totalWorkSeconds + totalRestSeconds;
+  const rounds = resolveRounds(session);
+  const totals = sumRounds(rounds);
+  const totalDuration = totals.total;
+  const uniform = isUniformRounds(rounds);
+  const workValue = uniform ? formatSecondsToClock(rounds[0].workSeconds) : 'Varies';
+  const restCandidates = rounds.filter((round) => round.restSeconds > 0);
+  const restValue = uniform
+    ? formatSecondsToClock(restCandidates[0]?.restSeconds ?? 0)
+    : 'Varies';
 
   const metricStyle = {
     display: 'flex',
@@ -107,7 +114,7 @@ const SessionCardComponent = ({ session, onPress, onEdit, onDelete }: Props) => 
                   {session.name}
                 </div>
                 <div style={{ marginTop: 4, fontSize: 13, fontWeight: 700, color: theme.colors.textMuted }}>
-                  {session.rounds} rounds - {formatSecondsToClock(totalDuration)}
+                  {rounds.length} rounds - {formatSecondsToClock(totalDuration)}
                 </div>
               </div>
               <span
@@ -146,16 +153,12 @@ const SessionCardComponent = ({ session, onPress, onEdit, onDelete }: Props) => 
         >
           <div style={metricStyle}>
             <span style={metricLabelStyle}>Work</span>
-            <span style={metricValueStyle}>
-              {formatSecondsToClock(session.workSeconds)}
-            </span>
+            <span style={metricValueStyle}>{workValue}</span>
           </div>
 
           <div style={metricStyle}>
             <span style={metricLabelStyle}>Rest</span>
-            <span style={metricValueStyle}>
-              {formatSecondsToClock(session.restSeconds)}
-            </span>
+            <span style={metricValueStyle}>{restValue}</span>
           </div>
 
           <div style={metricStyle}>
