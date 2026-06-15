@@ -82,6 +82,7 @@ const createKeepAliveTrackUrl = (): string => {
 export const useRunAudio = ({ enabled, status, soundId, revision, getTimeline }: Params) => {
   const ctxRef = useRef<AudioContext | null>(null);
   const tickBufferRef = useRef<AudioBuffer | null>(null);
+  const warnBufferRef = useRef<AudioBuffer | null>(null);
   const completeBufferRef = useRef<AudioBuffer | null>(null);
   const gongCacheRef = useRef<Map<SoundId, AudioBuffer>>(new Map());
   const keepAliveElRef = useRef<HTMLAudioElement | null>(null);
@@ -142,6 +143,18 @@ export const useRunAudio = ({ enabled, status, soundId, revision, getTimeline }:
 
     void (async () => {
       try {
+        const response = await fetch(`${base}sounds/round-warning.mp3`);
+        const decoded = await ctx.decodeAudioData(await response.arrayBuffer());
+        if (!cancelled) {
+          warnBufferRef.current = decoded;
+        }
+      } catch {
+        // Best-effort — the 30s warning is non-fatal.
+      }
+    })();
+
+    void (async () => {
+      try {
         const response = await fetch(`${base}sounds/complete_training.mp3`);
         const decoded = await ctx.decodeAudioData(await response.arrayBuffer());
         if (!cancelled) {
@@ -175,6 +188,7 @@ export const useRunAudio = ({ enabled, status, soundId, revision, getTimeline }:
       void ctx.close().catch(() => undefined);
       ctxRef.current = null;
       tickBufferRef.current = null;
+      warnBufferRef.current = null;
       completeBufferRef.current = null;
       gongCacheRef.current.clear();
       keepAliveElRef.current = null;
@@ -212,37 +226,40 @@ export const useRunAudio = ({ enabled, status, soundId, revision, getTimeline }:
     };
   }, [soundId]);
 
-  // Resume the context when the page returns to the foreground.
-  useEffect(() => {
-    const handleVisibility = () => {
-      const ctx = ctxRef.current;
-      if (ctx && document.visibilityState === 'visible' && ctx.state === 'suspended') {
-        void ctx.resume().catch(() => undefined);
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibility);
-    return () => document.removeEventListener('visibilitychange', handleVisibility);
-  }, []);
-
-  // Play / pause the keep-alive loop with the active timer.
+  // Play / pause the keep-alive loop with the active timer, and re-assert it when
+  // the page returns to the foreground (iOS can suspend the context / pause the
+  // element while locked — resuming both keeps scheduled cues firing).
   useEffect(() => {
     const el = keepAliveElRef.current;
-    const ctx = ctxRef.current;
     if (!el) {
       return;
     }
 
     const shouldHold = enabled && (status === 'running' || status === 'paused');
-    if (shouldHold) {
-      if (ctx && ctx.state === 'suspended') {
-        void ctx.resume().catch(() => undefined);
+
+    const assert = () => {
+      const ctx = ctxRef.current;
+      if (shouldHold) {
+        if (ctx && ctx.state === 'suspended') {
+          void ctx.resume().catch(() => undefined);
+        }
+        if (el.paused) {
+          void el.play().catch(() => undefined);
+        }
+      } else if (!el.paused) {
+        el.pause();
       }
-      if (el.paused) {
-        void el.play().catch(() => undefined);
+    };
+
+    assert();
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        assert();
       }
-    } else if (!el.paused) {
-      el.pause();
-    }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
   }, [enabled, status]);
 
   const clearScheduled = useCallback(() => {
@@ -287,6 +304,8 @@ export const useRunAudio = ({ enabled, status, soundId, revision, getTimeline }:
     const now = Date.now();
     const cues = getTimelineRef.current();
     const completeBuffer = completeBufferRef.current;
+    // The 30s warning falls back to the gong sample if its own clip is missing.
+    const warnBuffer = warnBufferRef.current ?? gongBuffer;
 
     cues.forEach((cue) => {
       const offsetSec = (cue.atMs - now) / 1000;
@@ -296,7 +315,13 @@ export const useRunAudio = ({ enabled, status, soundId, revision, getTimeline }:
       }
 
       const buffer =
-        cue.kind === 'gong' ? gongBuffer : cue.kind === 'complete' ? completeBuffer : tickBuffer;
+        cue.kind === 'gong'
+          ? gongBuffer
+          : cue.kind === 'warn'
+            ? warnBuffer
+            : cue.kind === 'complete'
+              ? completeBuffer
+              : tickBuffer;
       if (!buffer) {
         return;
       }

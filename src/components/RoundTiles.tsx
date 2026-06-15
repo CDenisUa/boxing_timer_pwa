@@ -18,6 +18,15 @@ type Props = {
   onSelect: (round: number) => void;
 };
 
+/**
+ * Rounds alternate colour by parity so both fighters can tell whose round it is
+ * at a glance: odd rounds green, even rounds orange.
+ */
+export const ROUND_ODD_COLOR = '#2FB874';
+export const ROUND_EVEN_COLOR = '#F5973B';
+export const roundColor = (round: number): string =>
+  round % 2 === 0 ? ROUND_EVEN_COLOR : ROUND_ODD_COLOR;
+
 const RoundTilesComponent = ({ rounds, currentRound, onSelect }: Props) => {
   const { theme } = useTheme();
 
@@ -39,6 +48,7 @@ const RoundTilesComponent = ({ rounds, currentRound, onSelect }: Props) => {
       {rounds.map((round, index) => {
         const roundNumber = index + 1;
         const isActive = roundNumber === currentRound;
+        const tone = roundColor(roundNumber);
 
         return (
           <button
@@ -54,23 +64,22 @@ const RoundTilesComponent = ({ rounds, currentRound, onSelect }: Props) => {
               gap: 2,
               padding: '8px 10px',
               borderRadius: 10,
-              borderWidth: 1,
+              borderWidth: isActive ? 2 : 1,
               borderStyle: 'solid',
-              borderColor: isActive ? theme.colors.primary : theme.colors.border,
-              backgroundColor: isActive ? `${theme.colors.primary}22` : theme.colors.card,
-              color: isActive ? theme.colors.primary : theme.colors.textMuted,
+              borderColor: tone,
+              backgroundColor: isActive ? `${tone}26` : `${tone}10`,
               cursor: 'pointer',
               transition: 'all 0.15s ease',
             }}
           >
-            <span style={{ fontSize: 11, fontWeight: 900, letterSpacing: 0.6 }}>
+            <span style={{ fontSize: 11, fontWeight: 900, letterSpacing: 0.6, color: tone }}>
               R{roundNumber}
             </span>
             <span
               style={{
                 fontSize: 13,
                 fontWeight: 900,
-                color: isActive ? theme.colors.primary : theme.colors.text,
+                color: isActive ? tone : theme.colors.text,
                 fontVariantNumeric: 'tabular-nums',
               }}
             >

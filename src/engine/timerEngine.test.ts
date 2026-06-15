@@ -325,3 +325,39 @@ describe('jumpToRound', () => {
     expect(jumpToRound(idle, twoRounds, 0, 0, 0).currentRound).toBe(1);
   });
 });
+
+describe('buildAudioTimeline — warnings & long sessions', () => {
+  // 5 identical 60s work rounds, no rest.
+  const longConfig = config(
+    Array.from({ length: 5 }, () => ({ workSeconds: 60, restSeconds: 0 })),
+  );
+
+  it('keeps a full 10-second countdown on every round, not just the first', () => {
+    const running = startTimer(createInitialSnapshot(longConfig), longConfig, 0).snapshot;
+    const cues = buildAudioTimeline(running, longConfig);
+    const ticks = cues.filter((c) => c.kind === 'tick');
+
+    // 5 rounds × 10 trailing ticks.
+    expect(ticks).toHaveLength(50);
+    // Round 5 starts at 4×60s = 240s and still has its 10 ticks.
+    const lastRoundTicks = ticks.filter((c) => c.atMs >= 240000);
+    expect(lastRoundTicks).toHaveLength(10);
+    expect(lastRoundTicks[0].atMs).toBe(290000); // 240s + (60-10)
+  });
+
+  it('adds a single 30s warning before each work round end', () => {
+    const running = startTimer(createInitialSnapshot(longConfig), longConfig, 0).snapshot;
+    const warns = buildAudioTimeline(running, longConfig)
+      .filter((c) => c.kind === 'warn')
+      .map((c) => c.atMs);
+
+    // One per round, 30s before each 60s round's end: 30s, 90s, 150s, 210s, 270s.
+    expect(warns).toEqual([30000, 90000, 150000, 210000, 270000]);
+  });
+
+  it('omits the 30s warning for rounds at or under 30s', () => {
+    const shortCfg = config([{ workSeconds: 20, restSeconds: 0 }]);
+    const running = startTimer(createInitialSnapshot(shortCfg), shortCfg, 0).snapshot;
+    expect(buildAudioTimeline(running, shortCfg).some((c) => c.kind === 'warn')).toBe(false);
+  });
+});

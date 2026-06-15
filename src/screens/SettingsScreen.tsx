@@ -5,9 +5,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSessions } from '@/app/SessionsProvider';
 
 // Components
-import { NumberField } from '@/components/NumberField';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { SegmentedControl } from '@/components/SegmentedControl';
+import { TimeWheelField } from '@/components/TimeWheelField';
 
 // Hooks
 import { soundOptions, useSound } from '@/hooks/useSound';
@@ -163,7 +163,23 @@ export const SettingsScreen = ({ navigation }: ScreenProps<'Settings'>) => {
         />
       </div>
 
-      <NumberField label="Prep countdown (seconds)" value={prepSeconds} onChange={setPrepSeconds} min={0} />
+      <div style={sectionStyle}>
+        <div>
+          <span style={labelStyle}>Get ready (before round 1)</span>
+          <div style={{ marginTop: 4, fontSize: 14, fontWeight: 700, color: theme.colors.textMuted }}>
+            Countdown to put your gloves on before the first round starts.
+          </div>
+        </div>
+        <div style={{ display: 'flex' }}>
+          <TimeWheelField
+            label="GET READY"
+            valueSeconds={prepSeconds}
+            onChange={setPrepSeconds}
+            minSeconds={0}
+            maxMinutes={10}
+          />
+        </div>
+      </div>
 
       <label
         style={{

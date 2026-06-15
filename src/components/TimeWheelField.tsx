@@ -1,5 +1,5 @@
 // Core
-import { CSSProperties, memo, useMemo, useState } from 'react';
+import { CSSProperties, memo, useEffect, useMemo, useRef, useState } from 'react';
 
 // Components
 import { PrimaryButton } from '@/components/PrimaryButton';
@@ -15,21 +15,118 @@ type Props = {
   maxMinutes?: number;
 };
 
+const ITEM_HEIGHT = 44;
+const VISIBLE_ROWS = 5; // odd so one row sits dead-centre
+const PAD = ((VISIBLE_ROWS - 1) / 2) * ITEM_HEIGHT;
+
 const toParts = (totalSeconds: number) => {
   const safe = Math.max(0, Math.floor(totalSeconds));
-  return {
-    minutes: Math.floor(safe / 60),
-    seconds: safe % 60,
-  };
+  return { minutes: Math.floor(safe / 60), seconds: safe % 60 };
 };
-
-const toSeconds = (minutes: number, seconds: number) => minutes * 60 + seconds;
 
 const pad2 = (value: number) => value.toString().padStart(2, '0');
 
-const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+type WheelColumnProps = {
+  items: number[];
+  value: number;
+  unit: string;
+  onSelect: (value: number) => void;
+};
 
-const commonSecondOptions = [0, 5, 10, 15, 20, 30, 45, 50];
+/**
+ * A scroll-snapping picker column. The centred row is the selected value; users
+ * can flick-scroll or tap a row (tapping is also what keeps it usable/testable
+ * in a layout-less DOM).
+ */
+const WheelColumn = ({ items, value, unit, onSelect }: WheelColumnProps) => {
+  const { theme } = useTheme();
+  const ref = useRef<HTMLDivElement>(null);
+  const settleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Align to the initial value once on mount.
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) {
+      return;
+    }
+    el.scrollTop = Math.max(0, items.indexOf(value)) * ITEM_HEIGHT;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleScroll = () => {
+    const el = ref.current;
+    if (!el) {
+      return;
+    }
+    if (settleRef.current) {
+      clearTimeout(settleRef.current);
+    }
+    settleRef.current = setTimeout(() => {
+      const index = Math.min(items.length - 1, Math.max(0, Math.round(el.scrollTop / ITEM_HEIGHT)));
+      if (items[index] !== value) {
+        onSelect(items[index]);
+      }
+    }, 90);
+  };
+
+  const handleTap = (item: number, index: number) => {
+    const el = ref.current;
+    if (el) {
+      el.scrollTo?.({ top: index * ITEM_HEIGHT, behavior: 'smooth' });
+      el.scrollTop = index * ITEM_HEIGHT;
+    }
+    onSelect(item);
+  };
+
+  return (
+    <div
+      ref={ref}
+      onScroll={handleScroll}
+      style={{
+        position: 'relative',
+        height: VISIBLE_ROWS * ITEM_HEIGHT,
+        overflowY: 'auto',
+        scrollSnapType: 'y mandatory',
+        WebkitOverflowScrolling: 'touch',
+        flex: 1,
+        scrollbarWidth: 'none',
+      }}
+    >
+      <div style={{ height: PAD }} />
+      {items.map((item, index) => {
+        const active = item === value;
+        return (
+          <button
+            key={item}
+            type="button"
+            aria-label={`${item} ${unit}`}
+            onClick={() => handleTap(item, index)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '100%',
+              height: ITEM_HEIGHT,
+              scrollSnapAlign: 'center',
+              background: 'transparent',
+              border: 'none',
+              cursor: 'pointer',
+              fontVariantNumeric: 'tabular-nums',
+              fontSize: active ? 30 : 22,
+              fontWeight: 900,
+              color: active ? theme.colors.text : theme.colors.textSubtle,
+              opacity: active ? 1 : 0.55,
+              transition: 'font-size 0.12s ease, opacity 0.12s ease',
+            }}
+          >
+            {pad2(item)}
+          </button>
+        );
+      })}
+      <div style={{ height: PAD }} />
+    </div>
+  );
+};
 
 const TimeWheelFieldComponent = ({
   label,
@@ -43,20 +140,17 @@ const TimeWheelFieldComponent = ({
 
   const initial = useMemo(() => {
     const parts = toParts(valueSeconds);
-    return {
-      minutes: Math.min(maxMinutes, parts.minutes),
-      seconds: parts.seconds,
-    };
+    return { minutes: Math.min(maxMinutes, parts.minutes), seconds: parts.seconds };
   }, [maxMinutes, valueSeconds]);
 
   const [minutes, setMinutes] = useState(initial.minutes);
   const [seconds, setSeconds] = useState(initial.seconds);
 
+  const minuteItems = useMemo(() => Array.from({ length: maxMinutes + 1 }, (_, i) => i), [maxMinutes]);
+  const secondItems = useMemo(() => Array.from({ length: 60 }, (_, i) => i), []);
+
   const timeText = `${pad2(initial.minutes)}:${pad2(initial.seconds)}`;
   const draftTimeText = `${pad2(minutes)}:${pad2(seconds)}`;
-  const maxSeconds = maxMinutes * 60 + 59;
-  const accentSurface = theme.colors.primarySoft;
-  const activeAccentSurface = theme.isDark ? theme.colors.surfaceMuted : theme.colors.cardStrong;
 
   const handleOpen = () => {
     setMinutes(initial.minutes);
@@ -65,68 +159,16 @@ const TimeWheelFieldComponent = ({
   };
 
   const handleApply = () => {
-    const next = Math.max(minSeconds, toSeconds(minutes, seconds));
-    onChange(next);
+    onChange(Math.max(minSeconds, minutes * 60 + seconds));
     setOpen(false);
   };
 
-  const setDraftFromTotal = (totalSeconds: number) => {
-    const next = toParts(clamp(totalSeconds, minSeconds, maxSeconds));
-    setMinutes(next.minutes);
-    setSeconds(next.seconds);
-  };
-
-  const adjustMinutes = (delta: number) => {
-    setDraftFromTotal(toSeconds(minutes + delta, seconds));
-  };
-
-  const adjustSeconds = (delta: number) => {
-    setDraftFromTotal(toSeconds(minutes, seconds + delta));
-  };
-
-  const setExactSeconds = (nextSeconds: number) => {
-    setDraftFromTotal(toSeconds(minutes, nextSeconds));
-  };
-
-  const controlButtonStyle: CSSProperties = {
-    width: 42,
-    minWidth: 42,
-    height: 42,
-    borderRadius: 8,
-    backgroundColor: theme.colors.surfaceStrong,
-    color: theme.colors.text,
-    fontSize: 22,
-    fontWeight: 900,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-  };
-
-  const stepperRowStyle: CSSProperties = {
-    borderWidth: 1,
-    borderStyle: 'solid' as const,
-    borderColor: theme.colors.border,
-    borderRadius: 8,
-    backgroundColor: theme.colors.surface,
-    padding: 8,
-    display: 'flex',
-    alignItems: 'center',
-    gap: 6,
-  };
-
-  const valuePillStyle: CSSProperties = {
-    flex: 1,
-    minWidth: 44,
-    height: 42,
-    borderRadius: 6,
-    backgroundColor: theme.colors.card,
-    color: theme.colors.text,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontSize: 22,
-    fontWeight: 900,
-    fontVariantNumeric: 'tabular-nums',
+  const columnLabelStyle: CSSProperties = {
+    fontSize: 12,
+    fontWeight: 800,
+    letterSpacing: 0.8,
+    color: theme.colors.textMuted,
+    textAlign: 'center',
   };
 
   return (
@@ -203,143 +245,56 @@ const TimeWheelFieldComponent = ({
                 : '0 22px 60px rgba(11, 22, 48, 0.18)',
             }}
           >
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-                <span style={{ fontSize: 18, fontWeight: 900, color: theme.colors.text }}>{label}</span>
-                <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: 1, color: theme.colors.textMuted }}>
-                  INTERVAL
-                </span>
-              </div>
-
-              <div
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+              <span style={{ fontSize: 18, fontWeight: 900, color: theme.colors.text }}>{label}</span>
+              <span
+                aria-live="polite"
                 style={{
-                  borderWidth: 1,
-                  borderStyle: 'solid',
-                  borderColor: theme.colors.border,
-                  borderRadius: 8,
-                  backgroundColor: accentSurface,
-                  minHeight: 92,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: theme.colors.text,
-                  fontSize: 48,
+                  fontSize: 22,
                   fontWeight: 900,
-                  lineHeight: 1,
+                  color: theme.colors.primary,
                   fontVariantNumeric: 'tabular-nums',
                 }}
-                aria-live="polite"
               >
                 {draftTimeText}
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <span style={{ fontSize: 13, fontWeight: 800, letterSpacing: 0.8, color: theme.colors.textMuted }}>
-                MINUTES
               </span>
-              <div style={stepperRowStyle}>
-                <button
-                  type="button"
-                  aria-label="Decrease minutes"
-                  onClick={() => adjustMinutes(-1)}
-                  style={controlButtonStyle}
-                >
-                  -
-                </button>
-                <div style={valuePillStyle}>{pad2(minutes)}</div>
-                <button
-                  type="button"
-                  aria-label="Increase minutes"
-                  onClick={() => adjustMinutes(1)}
-                  style={controlButtonStyle}
-                >
-                  +
-                </button>
-              </div>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
-                <span style={{ fontSize: 13, fontWeight: 800, letterSpacing: 0.8, color: theme.colors.textMuted }}>
-                  SECONDS
-                </span>
-                <span style={{ fontSize: 12, fontWeight: 700, color: theme.colors.textMuted }}>
-                  precise or quick set
-                </span>
-              </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <span style={columnLabelStyle}>MINUTES</span>
+              <span style={columnLabelStyle}>SECONDS</span>
+            </div>
 
-              <div style={stepperRowStyle}>
-                <button
-                  type="button"
-                  aria-label="Decrease seconds by five"
-                  onClick={() => adjustSeconds(-5)}
-                  style={{ ...controlButtonStyle, fontSize: 18 }}
-                >
-                  -5
-                </button>
-                <button
-                  type="button"
-                  aria-label="Decrease seconds"
-                  onClick={() => adjustSeconds(-1)}
-                  style={controlButtonStyle}
-                >
-                  -
-                </button>
-                <div style={valuePillStyle}>{pad2(seconds)}</div>
-                <button
-                  type="button"
-                  aria-label="Increase seconds"
-                  onClick={() => adjustSeconds(1)}
-                  style={controlButtonStyle}
-                >
-                  +
-                </button>
-                <button
-                  type="button"
-                  aria-label="Increase seconds by five"
-                  onClick={() => adjustSeconds(5)}
-                  style={{ ...controlButtonStyle, fontSize: 18 }}
-                >
-                  +5
-                </button>
-              </div>
-
+            <div
+              style={{
+                position: 'relative',
+                display: 'flex',
+                gap: 10,
+                borderWidth: 1,
+                borderStyle: 'solid',
+                borderColor: theme.colors.border,
+                borderRadius: 12,
+                backgroundColor: theme.colors.surface,
+                overflow: 'hidden',
+              }}
+            >
+              {/* Centre selection band. */}
               <div
+                aria-hidden
                 style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
-                  gap: 8,
+                  position: 'absolute',
+                  left: 8,
+                  right: 8,
+                  top: PAD,
+                  height: ITEM_HEIGHT,
+                  borderRadius: 8,
+                  backgroundColor: theme.colors.primarySoft,
+                  pointerEvents: 'none',
                 }}
-              >
-                {commonSecondOptions.map((value) => {
-                  const active = seconds === value;
-                  const disabled = minutes === 0 && value === 0 && minSeconds > 0;
-                  return (
-                    <button
-                      key={value}
-                      type="button"
-                      disabled={disabled}
-                      onClick={() => setExactSeconds(value)}
-                      style={{
-                        minHeight: 42,
-                        borderRadius: 8,
-                        borderWidth: 1,
-                        borderStyle: 'solid',
-                        borderColor: active ? theme.colors.primary : theme.colors.border,
-                        backgroundColor: active ? activeAccentSurface : theme.colors.surface,
-                        color: active ? theme.colors.text : theme.colors.textMuted,
-                        fontSize: 15,
-                        fontWeight: 900,
-                        fontVariantNumeric: 'tabular-nums',
-                        opacity: disabled ? 0.45 : 1,
-                      }}
-                    >
-                      {pad2(value)}
-                    </button>
-                  );
-                })}
-              </div>
+              />
+              <WheelColumn items={minuteItems} value={minutes} unit="minutes" onSelect={setMinutes} />
+              <div aria-hidden style={{ width: 1, backgroundColor: theme.colors.border, alignSelf: 'stretch' }} />
+              <WheelColumn items={secondItems} value={seconds} unit="seconds" onSelect={setSeconds} />
             </div>
 
             <div style={{ display: 'flex', gap: 10 }}>

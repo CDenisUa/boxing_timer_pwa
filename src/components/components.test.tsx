@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 // Components
 import { NumberField } from '@/components/NumberField';
 import { PrimaryButton } from '@/components/PrimaryButton';
-import { RoundTiles } from '@/components/RoundTiles';
+import { ROUND_EVEN_COLOR, ROUND_ODD_COLOR, RoundTiles, roundColor } from '@/components/RoundTiles';
 import { SegmentedControl } from '@/components/SegmentedControl';
 import { SemiCircularProgress } from '@/components/SemiCircularProgress';
 import { SessionCard } from '@/components/SessionCard';
@@ -144,6 +144,13 @@ describe('RoundTiles', () => {
     { workSeconds: 60, restSeconds: 0 },
   ];
 
+  it('colours rounds by parity: odd green, even orange', () => {
+    expect(roundColor(1)).toBe(ROUND_ODD_COLOR);
+    expect(roundColor(3)).toBe(ROUND_ODD_COLOR);
+    expect(roundColor(2)).toBe(ROUND_EVEN_COLOR);
+    expect(roundColor(4)).toBe(ROUND_EVEN_COLOR);
+  });
+
   it('renders nothing for a single-round session', () => {
     const { container } = renderWithTheme(
       <RoundTiles rounds={[{ workSeconds: 60, restSeconds: 0 }]} currentRound={1} onSelect={vi.fn()} />,
@@ -165,7 +172,7 @@ describe('RoundTiles', () => {
 });
 
 describe('TimeWheelField', () => {
-  it('opens the editor, adjusts the value and applies it', async () => {
+  it('opens the picker, selects minutes/seconds on the wheels and applies', async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
     renderWithTheme(<TimeWheelField label="WORK" valueSeconds={90} onChange={onChange} />);
@@ -175,12 +182,23 @@ describe('TimeWheelField', () => {
     await user.click(screen.getByText('Set interval'));
 
     expect(screen.getByRole('dialog')).toBeInTheDocument();
-    await user.click(screen.getByLabelText('Increase minutes'));
-    await user.click(screen.getByLabelText('Increase seconds by five'));
+    await user.click(screen.getByRole('button', { name: '2 minutes' }));
+    await user.click(screen.getByRole('button', { name: '15 seconds' }));
     await user.click(screen.getByRole('button', { name: 'Apply' }));
 
-    // 90s + 60s (minute) + 5s = 155s.
-    expect(onChange).toHaveBeenCalledWith(155);
+    // 2:15 = 135s.
+    expect(onChange).toHaveBeenCalledWith(135);
+  });
+
+  it('clamps the applied value to the minimum', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    renderWithTheme(<TimeWheelField label="WORK" valueSeconds={90} onChange={onChange} minSeconds={5} />);
+    await user.click(screen.getByText('Set interval'));
+    await user.click(screen.getByRole('button', { name: '0 minutes' }));
+    await user.click(screen.getByRole('button', { name: '0 seconds' }));
+    await user.click(screen.getByRole('button', { name: 'Apply' }));
+    expect(onChange).toHaveBeenCalledWith(5);
   });
 
   it('closes without changes on cancel', async () => {

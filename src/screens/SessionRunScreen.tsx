@@ -6,7 +6,7 @@ import { useSessions } from '@/app/SessionsProvider';
 
 // Components
 import { PrimaryButton } from '@/components/PrimaryButton';
-import { RoundTiles } from '@/components/RoundTiles';
+import { RoundTiles, roundColor } from '@/components/RoundTiles';
 import { TimerDisplay } from '@/components/TimerDisplay';
 
 // Hooks
@@ -360,13 +360,13 @@ export const SessionRunScreen = ({ route, navigation }: ScreenProps<'SessionRun'
           style={{
             borderWidth: 1,
             borderStyle: 'solid',
-            borderColor: theme.colors.border,
+            borderColor: roundColor(engine.currentRound),
             borderRadius: 999,
             padding: '7px 10px',
-            backgroundColor: theme.colors.surface,
+            backgroundColor: `${roundColor(engine.currentRound)}1F`,
             fontSize: 12,
             fontWeight: 900,
-            color: theme.colors.textMuted,
+            color: roundColor(engine.currentRound),
             whiteSpace: 'nowrap',
           }}
         >

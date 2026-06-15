@@ -112,7 +112,8 @@ describe('SettingsScreen', () => {
     const nav = fakeNav();
     renderWithProviders(<SettingsScreen {...settingsProps(nav)} />);
 
-    await waitFor(() => expect(screen.getByDisplayValue('5')).toBeInTheDocument());
+    // Prep time is now shown on the "Get ready" wheel field as mm:ss.
+    await waitFor(() => expect(screen.getByText('00:05')).toBeInTheDocument());
 
     await user.click(screen.getByRole('checkbox')); // keep screen awake on
     await user.click(screen.getByRole('button', { name: 'Save settings' }));

@@ -4,6 +4,9 @@ import { useEffect, useRef } from 'react';
 // Types
 import { TimerPhase, TimerStatus } from '@/types/models';
 
+// Utils
+import { formatSecondsToClock } from '@/utils/timeFormat';
+
 const base = import.meta.env.BASE_URL;
 
 type MediaSessionOptions = {
@@ -97,14 +100,18 @@ export const useMediaSession = (options: MediaSessionOptions) => {
       return;
     }
 
+    const remainingText = formatSecondsToClock(remainingSeconds);
+    const phaseText = PHASE_LABEL[phase];
+    const titleText = phase === 'finished' ? phaseText : `${remainingText} - ${phaseText}`;
     const roundText =
       phase === 'finished'
         ? 'Session complete'
         : `Round ${Math.min(currentRound, totalRounds)} / ${totalRounds}`;
+    const artistText = status === 'paused' ? `Paused - ${roundText}` : roundText;
 
     ms.metadata = new MediaMetadata({
-      title: PHASE_LABEL[phase],
-      artist: roundText,
+      title: titleText,
+      artist: artistText,
       album: title,
       artwork: [
         { src: `${base}icons/icon-192.png`, sizes: '192x192', type: 'image/png' },
@@ -117,11 +124,20 @@ export const useMediaSession = (options: MediaSessionOptions) => {
     if (typeof ms.setPositionState === 'function') {
       const duration = phaseDurationSeconds;
       if (duration > 0) {
-        const position = Math.min(Math.max(duration - remainingSeconds, 0), duration);
+        const remainingPosition = Math.min(Math.max(remainingSeconds, 0), duration);
+        const elapsedPosition = Math.min(Math.max(duration - remainingSeconds, 0), duration);
         try {
-          ms.setPositionState({ duration, position, playbackRate: 1 });
+          ms.setPositionState({
+            duration,
+            position: remainingPosition,
+            playbackRate: status === 'running' ? -1 : 1,
+          });
         } catch {
-          // Some engines reject odd position/duration combos — non-fatal.
+          try {
+            ms.setPositionState({ duration, position: elapsedPosition, playbackRate: 1 });
+          } catch {
+            // Some engines reject odd position/duration combos — non-fatal.
+          }
         }
       }
     }

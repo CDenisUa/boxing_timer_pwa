@@ -70,9 +70,18 @@ describe('useMediaSession', () => {
 
   it('publishes metadata and a playing state for an active session', () => {
     renderHook(() => useMediaSession(baseOptions));
-    expect(session.metadata).toMatchObject({ title: 'Work', artist: 'Round 2 / 5', album: 'Heavy Bag' });
+    // Title carries the live remaining time; artist the round progress.
+    expect(session.metadata).toMatchObject({
+      title: '00:30 - Work',
+      artist: 'Round 2 / 5',
+      album: 'Heavy Bag',
+    });
     expect(session.playbackState).toBe('playing');
-    expect(session.setPositionState).toHaveBeenCalledWith({ duration: 180, position: 150, playbackRate: 1 });
+    expect(session.setPositionState).toHaveBeenCalledWith({
+      duration: 180,
+      position: 30,
+      playbackRate: -1,
+    });
   });
 
   it('enables the skip (nexttrack) handler only when canSkip is true', () => {

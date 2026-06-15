@@ -317,7 +317,13 @@ export const skipRestPhase = (
 export type AudioCue = {
   /** Absolute wall-clock time (ms) the cue should sound at. */
   atMs: number;
-  kind: 'gong' | 'tick' | 'complete';
+  /**
+   * - `gong`: phase start (work / rest)
+   * - `warn`: a single warning ~`warnSeconds` before a work round ends
+   * - `tick`: one of the final whole-second countdown beats
+   * - `complete`: the session-finished melody
+   */
+  kind: 'gong' | 'warn' | 'tick' | 'complete';
 };
 
 /** Jumps straight to the start of a given (1-based) round, going through prep. */
@@ -371,6 +377,7 @@ export const buildAudioTimeline = (
   snapshot: TimerSnapshot,
   config: TimerConfig,
   lastSeconds = 10,
+  warnSeconds = 30,
 ): AudioCue[] => {
   const cues: AudioCue[] = [];
   if (snapshot.phaseStartedAt === null || snapshot.status === 'finished') {
@@ -387,6 +394,11 @@ export const buildAudioTimeline = (
 
     if ((snap.phase === 'work' || snap.phase === 'rest') && dur > 0) {
       cues.push({ atMs: cursor, kind: 'gong' });
+      // A single warning beat ~`warnSeconds` before a work round ends, but only
+      // when it lands clear of the final countdown window.
+      if (snap.phase === 'work' && dur > warnSeconds && warnSeconds > lastSeconds) {
+        cues.push({ atMs: cursor + (dur - warnSeconds) * 1000, kind: 'warn' });
+      }
       const maxMark = Math.min(lastSeconds, Math.floor(dur));
       for (let mark = maxMark; mark >= 1; mark -= 1) {
         cues.push({ atMs: cursor + (dur - mark) * 1000, kind: 'tick' });
