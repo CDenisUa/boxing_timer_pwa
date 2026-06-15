@@ -36,6 +36,7 @@ const RoundTilesComponent = ({ rounds, currentRound, onSelect }: Props) => {
 
   return (
     <div
+      className="round-tiles"
       style={{
         width: '100%',
         display: 'flex',
@@ -54,7 +55,9 @@ const RoundTilesComponent = ({ rounds, currentRound, onSelect }: Props) => {
           <button
             key={roundNumber}
             type="button"
+            className="round-tile"
             onClick={() => onSelect(roundNumber)}
+            aria-current={isActive ? 'step' : undefined}
             style={{
               flex: '0 0 auto',
               minWidth: 56,
@@ -67,19 +70,28 @@ const RoundTilesComponent = ({ rounds, currentRound, onSelect }: Props) => {
               borderWidth: isActive ? 2 : 1,
               borderStyle: 'solid',
               borderColor: tone,
-              backgroundColor: isActive ? `${tone}26` : `${tone}10`,
+              backgroundColor: isActive ? tone : `${tone}10`,
+              boxShadow: isActive ? `0 10px 22px ${tone}44` : 'none',
               cursor: 'pointer',
-              transition: 'all 0.15s ease',
+              transition:
+                'background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, transform 0.05s ease',
             }}
           >
-            <span style={{ fontSize: 11, fontWeight: 900, letterSpacing: 0.6, color: tone }}>
+            <span
+              style={{
+                fontSize: 11,
+                fontWeight: 900,
+                letterSpacing: 0.6,
+                color: isActive ? '#FFFFFF' : tone,
+              }}
+            >
               R{roundNumber}
             </span>
             <span
               style={{
                 fontSize: 13,
                 fontWeight: 900,
-                color: isActive ? tone : theme.colors.text,
+                color: isActive ? '#FFFFFF' : theme.colors.text,
                 fontVariantNumeric: 'tabular-nums',
               }}
             >

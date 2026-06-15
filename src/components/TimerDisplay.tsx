@@ -71,8 +71,12 @@ const TimerDisplayComponent = ({
   const progressPercent = Math.round(Math.min(1, Math.max(0, phaseProgress)) * 100);
 
   return (
-    <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 18 }}>
+    <div
+      className="timer-display"
+      style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 18 }}
+    >
       <div
+        className="timer-card"
         style={{
           width: '100%',
           maxWidth: 388,
@@ -111,16 +115,19 @@ const TimerDisplayComponent = ({
         </div>
 
         {(phase === 'work' || phase === 'rest') && (
-          <SemiCircularProgress
-            progress={phaseProgress}
-            color={phaseColor}
-            trackColor={theme.colors.surfaceMuted}
-            size={252}
-            strokeWidth={12}
-          />
+          <div className="timer-progress-wrap">
+            <SemiCircularProgress
+              progress={phaseProgress}
+              color={phaseColor}
+              trackColor={theme.colors.surfaceMuted}
+              size={252}
+              strokeWidth={12}
+            />
+          </div>
         )}
 
         <div
+          className="timer-clock"
           style={{
             marginTop: phase === 'work' || phase === 'rest' ? -62 : 0,
             textAlign: 'center',
@@ -135,6 +142,7 @@ const TimerDisplayComponent = ({
         </div>
 
         <div
+          className="timer-meta"
           style={{
             width: '100%',
             display: 'flex',

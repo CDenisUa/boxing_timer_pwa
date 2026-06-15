@@ -309,7 +309,7 @@ export const SessionRunScreen = ({ route, navigation }: ScreenProps<'SessionRun'
 
   return (
     <div
-      className="app-shell"
+      className="app-shell session-run-shell"
       style={{
         background: toGradient(gradientColors),
         padding: '42px 14px 18px',
@@ -321,6 +321,7 @@ export const SessionRunScreen = ({ route, navigation }: ScreenProps<'SessionRun'
       }}
     >
       <div
+        className="session-run-header"
         style={{
           borderWidth: 1,
           borderStyle: 'solid',
@@ -379,6 +380,7 @@ export const SessionRunScreen = ({ route, navigation }: ScreenProps<'SessionRun'
       </div>
 
       <div
+        className="session-run-content"
         style={{
           flex: 1,
           display: 'flex',
@@ -389,11 +391,13 @@ export const SessionRunScreen = ({ route, navigation }: ScreenProps<'SessionRun'
           padding: '18px 0',
         }}
       >
-        <RoundTiles
-          rounds={rounds}
-          currentRound={engine.currentRound}
-          onSelect={engine.goToRound}
-        />
+        <div className="session-run-rounds">
+          <RoundTiles
+            rounds={rounds}
+            currentRound={engine.currentRound}
+            onSelect={engine.goToRound}
+          />
+        </div>
         <TimerDisplay
           phase={engine.phase}
           remainingSeconds={engine.remainingSeconds}
@@ -406,6 +410,7 @@ export const SessionRunScreen = ({ route, navigation }: ScreenProps<'SessionRun'
       </div>
 
       <div
+        className="session-run-controls"
         style={{
           borderWidth: 1,
           borderStyle: 'solid',
@@ -421,6 +426,7 @@ export const SessionRunScreen = ({ route, navigation }: ScreenProps<'SessionRun'
       >
         {nextPhaseText ? (
           <div
+            className="session-run-next"
             style={{
               borderWidth: 1,
               borderStyle: 'solid',
@@ -439,7 +445,7 @@ export const SessionRunScreen = ({ route, navigation }: ScreenProps<'SessionRun'
           </div>
         ) : null}
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: 10 }}>
+        <div className="session-run-actions" style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: 10 }}>
           <PrimaryButton label="Stop" variant="secondary" onPress={engine.reset} style={controlBtnStyle} />
           {showStart ? (
             <PrimaryButton label="Start" onPress={engine.start} size="lg" style={controlBtnStyle} />
