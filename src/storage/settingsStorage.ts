@@ -10,7 +10,7 @@ const SOUND_IDS: SoundId[] = ['boxing-gong', 'classic-gong', 'gong', 'beep', 'be
 export const defaultSettings: AppSettings = {
   themeMode: 'system',
   defaultSoundId: 'boxing-gong',
-  keepScreenAwake: false,
+  keepScreenAwake: true,
   prepSeconds: 10,
 };
 

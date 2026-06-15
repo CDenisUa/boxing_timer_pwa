@@ -172,7 +172,11 @@ export const SessionRunScreen = ({ route, navigation }: ScreenProps<'SessionRun'
     navigation.goBack();
   }, [navigation]);
 
-  useKeepAwake(isFocused && keepAwakeEnabled);
+  useKeepAwake(
+    isFocused &&
+      keepAwakeEnabled &&
+      (engine.status === 'running' || engine.status === 'paused'),
+  );
 
   useMediaSession({
     enabled: isFocused && !!session,
