@@ -1,24 +1,28 @@
 // Core
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 // App
 import { useSessions } from '@/app/SessionsProvider';
 
 // Components
 import { PrimaryButton } from '@/components/PrimaryButton';
+import { RoundTiles } from '@/components/RoundTiles';
 import { TimerDisplay } from '@/components/TimerDisplay';
 
 // Hooks
-import { useCountdownTicker } from '@/hooks/useCountdownTicker';
 import { useKeepAwake } from '@/hooks/useKeepAwake';
 import { useMediaSession } from '@/hooks/useMediaSession';
-import { useSound } from '@/hooks/useSound';
+import { useRunAudio } from '@/hooks/useRunAudio';
 import { useTimerEngine } from '@/hooks/useTimerEngine';
+
+// Engine
+import { buildAudioTimeline, TimerSnapshot } from '@/engine/timerEngine';
 
 // Navigation
 import { ScreenProps, useIsFocused } from '@/navigation/RootNavigator';
 
 // Storage
+import { runStateStorage } from '@/storage/runStateStorage';
 import { defaultSettings, settingsStorage } from '@/storage/settingsStorage';
 
 // Theme
@@ -31,13 +35,31 @@ import { formatSecondsToClock } from '@/utils/timeFormat';
 const toGradient = (colors: readonly string[]): string =>
   `linear-gradient(135deg, ${colors.join(', ')})`;
 
+const vibrate = (durationMs: number) => {
+  if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+    try {
+      navigator.vibrate(durationMs);
+    } catch {
+      // Vibration unsupported / blocked — ignore.
+    }
+  }
+};
+
 export const SessionRunScreen = ({ route, navigation }: ScreenProps<'SessionRun'>) => {
   const { theme } = useTheme();
-  const { getById } = useSessions();
-  const { play } = useSound();
+  const { getById, isLoading } = useSessions();
   const isFocused = useIsFocused('SessionRun');
 
   const session = getById(route.params.sessionId);
+
+  // A session restored after the PWA was reloaded resumes from its saved state.
+  const restoredSnapshot = useMemo<TimerSnapshot | null>(() => {
+    if (!route.params.restored) {
+      return null;
+    }
+    const saved = runStateStorage.read();
+    return saved && saved.sessionId === route.params.sessionId ? saved.snapshot : null;
+  }, [route.params.restored, route.params.sessionId]);
 
   const [prepSeconds, setPrepSeconds] = useState(defaultSettings.prepSeconds);
   const [keepAwakeEnabled, setKeepAwakeEnabled] = useState(defaultSettings.keepScreenAwake);
@@ -76,15 +98,79 @@ export const SessionRunScreen = ({ route, navigation }: ScreenProps<'SessionRun'
 
   const engine = useTimerEngine({
     config,
+    initialSnapshot: restoredSnapshot,
+    // Hold a restored session steady until the real session/config has loaded so
+    // it can't false-advance against the placeholder fallback config.
+    ticking: !!session && !isLoading,
     onEvent: (event) => {
-      if (!session) {
-        return;
-      }
+      // Audio is scheduled ahead by useRunAudio; here we only add a haptic cue
+      // (best-effort, foreground only).
       if (event.type === 'phase_started') {
-        void play(session.soundId);
+        vibrate(180);
       }
     },
   });
+
+  // Latest snapshot + config for building the audio timeline on demand.
+  const timelineSnapshot: TimerSnapshot = {
+    status: engine.status,
+    phase: engine.phase,
+    prepTargetPhase: engine.prepTargetPhase,
+    currentRound: engine.currentRound,
+    remainingSeconds: engine.remainingSeconds,
+    phaseStartedAt: engine.phaseStartedAt,
+    phaseDurationSeconds: engine.phaseDurationSeconds,
+    elapsedBeforePauseSeconds: engine.elapsedBeforePauseSeconds,
+  };
+  const snapshotRef = useRef(timelineSnapshot);
+  snapshotRef.current = timelineSnapshot;
+  const configRef = useRef(config);
+  configRef.current = config;
+  const getTimeline = useCallback(() => buildAudioTimeline(snapshotRef.current, configRef.current), []);
+
+  // Identifies the current timeline so the audio schedule re-anchors when it
+  // genuinely changes (engine action, phase boundary, sound, or a restored
+  // session's config arriving). It deliberately does NOT include the per-100ms
+  // countdown, so a locked screen — where the JS interval is frozen — keeps the
+  // already-scheduled cues instead of churning.
+  const audioRevision = [
+    engine.runEpoch,
+    session ? 'ready' : 'wait',
+    session?.soundId ?? '',
+    engine.phase,
+    engine.currentRound,
+    engine.phaseStartedAt ?? 0,
+  ].join(':');
+
+  useRunAudio({
+    enabled: isFocused && !!session,
+    status: engine.status,
+    soundId: session?.soundId ?? defaultSettings.defaultSoundId,
+    revision: audioRevision,
+    getTimeline,
+  });
+
+  // Persist an in-progress run so a PWA reload (e.g. after the phone was locked
+  // and the app evicted from memory) resumes instead of dropping to the menu.
+  useEffect(() => {
+    if (!session) {
+      return;
+    }
+    if (engine.status === 'running' || engine.status === 'paused') {
+      void runStateStorage.save({
+        sessionId: session.id,
+        snapshot: snapshotRef.current,
+        savedAt: Date.now(),
+      });
+    } else {
+      void runStateStorage.clear();
+    }
+  }, [session, engine.status, engine.phase, engine.currentRound, engine.phaseStartedAt]);
+
+  const handleBack = useCallback(() => {
+    void runStateStorage.clear();
+    navigation.goBack();
+  }, [navigation]);
 
   useKeepAwake(isFocused && keepAwakeEnabled);
 
@@ -165,14 +251,6 @@ export const SessionRunScreen = ({ route, navigation }: ScreenProps<'SessionRun'
     return null;
   }, [engine.currentRound, engine.phase, engine.status, rounds, session]);
 
-  useCountdownTicker({
-    enabled: isFocused,
-    phase: engine.phase,
-    status: engine.status,
-    phaseStartedAt: engine.phaseStartedAt,
-    phaseDurationSeconds: engine.phaseDurationSeconds,
-  });
-
   if (!session) {
     return (
       <div
@@ -186,8 +264,10 @@ export const SessionRunScreen = ({ route, navigation }: ScreenProps<'SessionRun'
           flex: 1,
         }}
       >
-        <p style={{ color: theme.colors.text, fontWeight: 800 }}>Session not found</p>
-        <PrimaryButton label="Back" onPress={() => navigation.goBack()} />
+        <p style={{ color: theme.colors.text, fontWeight: 800 }}>
+          {isLoading ? 'Loading…' : 'Session not found'}
+        </p>
+        {!isLoading ? <PrimaryButton label="Back" onPress={handleBack} /> : null}
       </div>
     );
   }
@@ -250,7 +330,7 @@ export const SessionRunScreen = ({ route, navigation }: ScreenProps<'SessionRun'
           boxShadow: theme.isDark ? 'none' : '0 12px 30px rgba(17, 24, 39, 0.06)',
         }}
       >
-        <PrimaryButton label="Back" variant="secondary" size="sm" onPress={() => navigation.goBack()} />
+        <PrimaryButton label="Back" variant="secondary" size="sm" onPress={handleBack} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div
             style={{
@@ -298,11 +378,18 @@ export const SessionRunScreen = ({ route, navigation }: ScreenProps<'SessionRun'
         style={{
           flex: 1,
           display: 'flex',
+          flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
+          gap: 14,
           padding: '18px 0',
         }}
       >
+        <RoundTiles
+          rounds={rounds}
+          currentRound={engine.currentRound}
+          onSelect={engine.goToRound}
+        />
         <TimerDisplay
           phase={engine.phase}
           remainingSeconds={engine.remainingSeconds}

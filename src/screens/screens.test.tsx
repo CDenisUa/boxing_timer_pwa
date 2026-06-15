@@ -1,0 +1,222 @@
+// Core
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+// Navigation
+import { ScreenProps } from '@/navigation/RootNavigator';
+// Screens
+import { SessionEditorScreen } from '@/screens/SessionEditorScreen';
+import { SessionRunScreen } from '@/screens/SessionRunScreen';
+import { SettingsScreen } from '@/screens/SettingsScreen';
+// Storage
+import { runStateStorage } from '@/storage/runStateStorage';
+import { sessionsStorage } from '@/storage/sessionsStorage';
+import { settingsStorage } from '@/storage/settingsStorage';
+// Test
+import { makeSession, renderWithProviders } from '@/test/utils';
+
+const fakeNav = () => ({ navigate: vi.fn(), goBack: vi.fn() });
+
+const editorProps = (
+  nav: ReturnType<typeof fakeNav>,
+  sessionId?: string,
+): ScreenProps<'SessionEditor'> => ({
+  navigation: nav,
+  route: { name: 'SessionEditor', params: sessionId ? { sessionId } : undefined },
+});
+
+afterEach(() => vi.restoreAllMocks());
+
+describe('SessionEditorScreen', () => {
+  it('blocks saving without a name', async () => {
+    const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => undefined);
+    const nav = fakeNav();
+    renderWithProviders(<SessionEditorScreen {...editorProps(nav)} />);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(alertSpy).toHaveBeenCalledWith('Name is required');
+    expect(nav.goBack).not.toHaveBeenCalled();
+  });
+
+  it('creates a uniform session', async () => {
+    const user = userEvent.setup();
+    const nav = fakeNav();
+    renderWithProviders(<SessionEditorScreen {...editorProps(nav)} />);
+
+    await user.type(screen.getByPlaceholderText('Heavy Bag Drill'), 'My Workout');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(nav.goBack).toHaveBeenCalled());
+    const saved = await sessionsStorage.getAll();
+    expect(saved).toHaveLength(1);
+    expect(saved[0]).toMatchObject({ name: 'My Workout', rounds: 3, roundsConfig: undefined });
+  });
+
+  it('supports per-round timing with add / remove', async () => {
+    const user = userEvent.setup();
+    const nav = fakeNav();
+    renderWithProviders(<SessionEditorScreen {...editorProps(nav)} />);
+
+    await user.type(screen.getByPlaceholderText('Heavy Bag Drill'), 'Intervals');
+    await user.click(screen.getByRole('button', { name: 'Per round' }));
+
+    // Default seeds 3 rounds; add one, then remove one → back to 3.
+    expect(screen.getByText('Rounds (3)')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '+ Add round' }));
+    expect(screen.getByText('Rounds (4)')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Remove round 4' }));
+    expect(screen.getByText('Rounds (3)')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(nav.goBack).toHaveBeenCalled());
+    const [saved] = await sessionsStorage.getAll();
+    expect(saved.roundsConfig).toHaveLength(3);
+  });
+
+  it('edits an existing session (already loaded in the provider)', async () => {
+    await sessionsStorage.saveAll([makeSession({ id: 'e1', name: 'Old Name' })]);
+    const user = userEvent.setup();
+    // Render App so the provider has finished loading before the editor opens.
+    const { default: App } = await import('@/app/App');
+    render(<App />);
+
+    await waitFor(() => expect(screen.getByText('Old Name')).toBeInTheDocument());
+    await user.click(screen.getByRole('button', { name: 'Edit' }));
+
+    const input = screen.getByDisplayValue('Old Name');
+    expect(screen.getByRole('heading', { name: 'Edit workout' })).toBeInTheDocument();
+    await user.clear(input);
+    await user.type(input, 'New Name');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(sessionsStorage.getAll()).resolves.toHaveLength(1));
+    const [saved] = await sessionsStorage.getAll();
+    expect(saved.name).toBe('New Name');
+  });
+});
+
+describe('SettingsScreen', () => {
+  const settingsProps = (nav: ReturnType<typeof fakeNav>): ScreenProps<'Settings'> => ({
+    navigation: nav,
+    route: { name: 'Settings', params: undefined },
+  });
+
+  it('loads stored settings and saves changes', async () => {
+    await settingsStorage.save({
+      themeMode: 'system',
+      defaultSoundId: 'beep',
+      keepScreenAwake: false,
+      prepSeconds: 5,
+    });
+    const user = userEvent.setup();
+    const nav = fakeNav();
+    renderWithProviders(<SettingsScreen {...settingsProps(nav)} />);
+
+    await waitFor(() => expect(screen.getByDisplayValue('5')).toBeInTheDocument());
+
+    await user.click(screen.getByRole('checkbox')); // keep screen awake on
+    await user.click(screen.getByRole('button', { name: 'Save settings' }));
+
+    await waitFor(() => expect(nav.navigate).toHaveBeenCalledWith('SessionsList'));
+    const stored = await settingsStorage.get();
+    expect(stored.keepScreenAwake).toBe(true);
+    expect(stored.prepSeconds).toBe(5);
+  });
+});
+
+describe('SessionRunScreen', () => {
+  const runProps = (nav: ReturnType<typeof fakeNav>, sessionId: string): ScreenProps<'SessionRun'> => ({
+    navigation: nav,
+    route: { name: 'SessionRun', params: { sessionId } },
+  });
+
+  it('renders a not-found state for a missing session', async () => {
+    const nav = fakeNav();
+    renderWithProviders(<SessionRunScreen {...runProps(nav, 'missing')} />);
+    await waitFor(() => expect(screen.getByText('Session not found')).toBeInTheDocument());
+  });
+
+  it('starts, pauses and persists an in-progress run', async () => {
+    await sessionsStorage.saveAll([makeSession({ id: 'r1', name: 'Runner' })]);
+    const user = userEvent.setup();
+    const nav = fakeNav();
+    renderWithProviders(<SessionRunScreen {...runProps(nav, 'r1')} />);
+
+    await waitFor(() => expect(screen.getByText('Runner')).toBeInTheDocument());
+
+    await user.click(screen.getByRole('button', { name: 'Start' }));
+    expect(screen.getByRole('button', { name: 'Pause' })).toBeInTheDocument();
+    await waitFor(() => expect(runStateStorage.read()).toMatchObject({ sessionId: 'r1' }));
+
+    await user.click(screen.getByRole('button', { name: 'Pause' }));
+    expect(screen.getByRole('button', { name: 'Resume' })).toBeInTheDocument();
+  });
+
+  it('skips the current round into the prep countdown', async () => {
+    // No prep before start so the first phase is WORK straight away.
+    await settingsStorage.save({
+      themeMode: 'system',
+      defaultSoundId: 'boxing-gong',
+      keepScreenAwake: false,
+      prepSeconds: 0,
+    });
+    await sessionsStorage.saveAll([makeSession({ id: 'r3', name: 'Skipper' })]);
+    const user = userEvent.setup();
+    const nav = fakeNav();
+    renderWithProviders(<SessionRunScreen {...runProps(nav, 'r3')} />);
+
+    await waitFor(() => expect(screen.getByText('Skipper')).toBeInTheDocument());
+    await user.click(screen.getByRole('button', { name: 'Start' }));
+    await waitFor(() => expect(screen.getByText('WORK')).toBeInTheDocument());
+
+    await user.click(screen.getByRole('button', { name: 'Skip round to 3s' }));
+    expect(screen.getByText('GET READY')).toBeInTheDocument(); // 3s prep before the rest
+  });
+
+  it('Stop resets to the start state and clears the saved run', async () => {
+    await sessionsStorage.saveAll([makeSession({ id: 'r4', name: 'Stopper' })]);
+    const user = userEvent.setup();
+    const nav = fakeNav();
+    renderWithProviders(<SessionRunScreen {...runProps(nav, 'r4')} />);
+
+    await waitFor(() => expect(screen.getByText('Stopper')).toBeInTheDocument());
+    await user.click(screen.getByRole('button', { name: 'Start' }));
+    await waitFor(() => expect(runStateStorage.read()).not.toBeNull());
+
+    await user.click(screen.getByRole('button', { name: 'Stop' }));
+    expect(screen.getByRole('button', { name: 'Start' })).toBeInTheDocument();
+    await waitFor(() => expect(runStateStorage.read()).toBeNull());
+  });
+
+  it('jumps to a chosen round via the round tiles', async () => {
+    await settingsStorage.save({
+      themeMode: 'system',
+      defaultSoundId: 'boxing-gong',
+      keepScreenAwake: false,
+      prepSeconds: 0,
+    });
+    await sessionsStorage.saveAll([makeSession({ id: 'r5', name: 'Jumper', rounds: 3 })]);
+    const user = userEvent.setup();
+    const nav = fakeNav();
+    renderWithProviders(<SessionRunScreen {...runProps(nav, 'r5')} />);
+
+    await waitFor(() => expect(screen.getByText('Jumper')).toBeInTheDocument());
+    await user.click(screen.getByText('R3')); // jump straight to round 3
+    expect(screen.getByText('Round 3 / 3')).toBeInTheDocument();
+  });
+
+  it('clears the persisted run when leaving via Back', async () => {
+    await sessionsStorage.saveAll([makeSession({ id: 'r2', name: 'Leaver' })]);
+    const user = userEvent.setup();
+    const nav = fakeNav();
+    renderWithProviders(<SessionRunScreen {...runProps(nav, 'r2')} />);
+
+    await waitFor(() => expect(screen.getByText('Leaver')).toBeInTheDocument());
+    await user.click(screen.getByRole('button', { name: 'Start' }));
+    await waitFor(() => expect(runStateStorage.read()).not.toBeNull());
+
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+    expect(nav.goBack).toHaveBeenCalled();
+    expect(runStateStorage.read()).toBeNull();
+  });
+});

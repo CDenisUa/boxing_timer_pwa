@@ -11,7 +11,7 @@ export const defaultSettings: AppSettings = {
   themeMode: 'system',
   defaultSoundId: 'boxing-gong',
   keepScreenAwake: false,
-  prepSeconds: 3,
+  prepSeconds: 10,
 };
 
 const parseSettings = (raw: string | null): AppSettings => {

@@ -6,7 +6,7 @@ import { SoundId } from '@/types/models';
 
 const base = import.meta.env.BASE_URL;
 
-const SOUND_FILES: Record<SoundId, string> = {
+export const SOUND_FILES: Record<SoundId, string> = {
   'boxing-gong': `${base}sounds/boxing-gong.mp3`,
   'classic-gong': `${base}sounds/the-sound-of-a-gong.mp3`,
   gong: `${base}sounds/gong.wav`,

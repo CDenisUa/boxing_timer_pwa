@@ -314,6 +314,105 @@ export const skipRestPhase = (
   };
 };
 
+export type AudioCue = {
+  /** Absolute wall-clock time (ms) the cue should sound at. */
+  atMs: number;
+  kind: 'gong' | 'tick' | 'complete';
+};
+
+/** Jumps straight to the start of a given (1-based) round, going through prep. */
+export const jumpToRound = (
+  prev: TimerSnapshot,
+  config: TimerConfig,
+  now: number,
+  round: number,
+  prepSeconds: number,
+): TimerSnapshot => {
+  const target = Math.min(Math.max(1, Math.floor(round)), roundCount(config));
+
+  if (prepSeconds <= 0) {
+    return {
+      ...prev,
+      phase: 'work',
+      prepTargetPhase: 'work',
+      status: 'running',
+      currentRound: target,
+      phaseStartedAt: now,
+      phaseDurationSeconds: workOf(config, target),
+      elapsedBeforePauseSeconds: 0,
+      remainingSeconds: workOf(config, target),
+    };
+  }
+
+  return {
+    ...prev,
+    phase: 'prep',
+    prepTargetPhase: 'work',
+    status: 'running',
+    currentRound: target,
+    phaseStartedAt: now,
+    phaseDurationSeconds: prepSeconds,
+    elapsedBeforePauseSeconds: 0,
+    remainingSeconds: prepSeconds,
+  };
+};
+
+/**
+ * Enumerates every audio cue for the rest of the session from the current
+ * snapshot: a gong at the start of each upcoming work/rest phase, plus a tick on
+ * each of the final `lastSeconds` whole seconds of those phases.
+ *
+ * Because every cue carries an absolute timestamp, the whole remaining session
+ * can be scheduled on the Web Audio clock in one pass. This is what keeps sound
+ * playing while the screen is locked — once scheduled, cues no longer depend on
+ * the (throttled / frozen) JS interval to fire.
+ */
+export const buildAudioTimeline = (
+  snapshot: TimerSnapshot,
+  config: TimerConfig,
+  lastSeconds = 10,
+): AudioCue[] => {
+  const cues: AudioCue[] = [];
+  if (snapshot.phaseStartedAt === null || snapshot.status === 'finished') {
+    return cues;
+  }
+
+  let snap: TimerSnapshot = snapshot;
+  let cursor = snapshot.phaseStartedAt;
+  let guard = 0;
+
+  while (guard < 2000) {
+    guard += 1;
+    const dur = snap.phaseDurationSeconds;
+
+    if ((snap.phase === 'work' || snap.phase === 'rest') && dur > 0) {
+      cues.push({ atMs: cursor, kind: 'gong' });
+      const maxMark = Math.min(lastSeconds, Math.floor(dur));
+      for (let mark = maxMark; mark >= 1; mark -= 1) {
+        cues.push({ atMs: cursor + (dur - mark) * 1000, kind: 'tick' });
+      }
+    } else if (snap.phase === 'prep' && dur > 0) {
+      // A tick on each whole second of the prep countdown.
+      const marks = Math.floor(dur);
+      for (let mark = marks; mark >= 1; mark -= 1) {
+        cues.push({ atMs: cursor + (dur - mark) * 1000, kind: 'tick' });
+      }
+    }
+
+    const phaseEnd = cursor + dur * 1000;
+    const { snapshot: next } = advancePhase(snap, config, phaseEnd);
+    if (next.status === 'finished' || next.phase === 'finished' || next.phaseStartedAt === null) {
+      // The whole session is done — play the completion melody.
+      cues.push({ atMs: phaseEnd, kind: 'complete' });
+      break;
+    }
+    snap = next;
+    cursor = phaseEnd;
+  }
+
+  return cues;
+};
+
 export const tickTimer = (
   prev: TimerSnapshot,
   config: TimerConfig,

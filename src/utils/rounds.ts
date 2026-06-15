@@ -10,9 +10,11 @@ type RoundsSource = Pick<Session, 'rounds' | 'workSeconds' | 'restSeconds' | 'ro
  */
 export const resolveRounds = (session: RoundsSource): RoundConfig[] => {
   if (session.roundsConfig && session.roundsConfig.length > 0) {
-    return session.roundsConfig.map((round) => ({
+    const last = session.roundsConfig.length - 1;
+    return session.roundsConfig.map((round, index) => ({
       workSeconds: Math.max(1, Math.floor(round.workSeconds)),
-      restSeconds: Math.max(0, Math.floor(round.restSeconds)),
+      // The final round never has a trailing rest — the session ends on its work.
+      restSeconds: index < last ? Math.max(0, Math.floor(round.restSeconds)) : 0,
     }));
   }
 

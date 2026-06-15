@@ -7,10 +7,13 @@ import { SessionRunScreen } from '@/screens/SessionRunScreen';
 import { SessionsListScreen } from '@/screens/SessionsListScreen';
 import { SettingsScreen } from '@/screens/SettingsScreen';
 
+// Storage
+import { runStateStorage } from '@/storage/runStateStorage';
+
 export type RootStackParamList = {
   SessionsList: undefined;
   SessionEditor: { sessionId?: string } | undefined;
-  SessionRun: { sessionId: string };
+  SessionRun: { sessionId: string; restored?: boolean };
   Settings: undefined;
 };
 
@@ -54,8 +57,24 @@ export type ScreenProps<T extends RouteName> = {
   route: Route<T>;
 };
 
+/**
+ * Builds the initial stack. If a fresh in-progress run was persisted (the PWA
+ * was reloaded mid-session — e.g. evicted from memory while the phone was
+ * locked), reopen straight into it instead of the list.
+ */
+const initialStack = (): StackEntry[] => {
+  const saved = runStateStorage.read();
+  if (saved) {
+    return [
+      { name: 'SessionsList' },
+      { name: 'SessionRun', params: { sessionId: saved.sessionId, restored: true } },
+    ];
+  }
+  return [{ name: 'SessionsList' }];
+};
+
 export const RootNavigator = () => {
-  const [stack, setStack] = useState<StackEntry[]>([{ name: 'SessionsList' }]);
+  const [stack, setStack] = useState<StackEntry[]>(initialStack);
 
   const navigate = useCallback<Navigation['navigate']>((name, params) => {
     setStack((prev) => [...prev, { name, params }]);

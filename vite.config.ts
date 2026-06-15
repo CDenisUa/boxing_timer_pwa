@@ -17,7 +17,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['icons/icon.png', 'sounds/*.wav', 'sounds/*.mp3'],
+      includeAssets: ['icons/icon.png', 'icons/icon-180.png', 'sounds/*.wav', 'sounds/*.mp3'],
       workbox: {
         globPatterns: ['**/*.{js,css,html,png,jpg,svg,wav,mp3,woff2}'],
         maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
@@ -34,6 +34,12 @@ export default defineConfig({
         start_url: './',
         scope: './',
         icons: [
+          {
+            src: 'icons/icon-180.png',
+            sizes: '180x180',
+            type: 'image/png',
+            purpose: 'any',
+          },
           {
             src: 'icons/icon-192.png',
             sizes: '192x192',
