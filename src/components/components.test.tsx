@@ -177,6 +177,17 @@ describe('RoundTiles', () => {
     await userEvent.click(screen.getByText('R2'));
     expect(onSelect).toHaveBeenCalledWith(2);
   });
+
+  it('wraps round tiles instead of forcing horizontal overflow', () => {
+    const { container } = renderWithTheme(<RoundTiles rounds={rounds} currentRound={1} onSelect={vi.fn()} />);
+    const tiles = container.querySelector<HTMLElement>('.round-tiles');
+
+    expect(tiles).not.toBeNull();
+    expect(tiles!).toHaveStyle({
+      flexWrap: 'wrap',
+      overflowX: 'hidden',
+    });
+  });
 });
 
 describe('TimeWheelField', () => {

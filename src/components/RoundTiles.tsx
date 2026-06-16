@@ -40,10 +40,12 @@ const RoundTilesComponent = ({ rounds, currentRound, onSelect }: Props) => {
       style={{
         width: '100%',
         display: 'flex',
+        flexWrap: 'wrap',
+        justifyContent: 'center',
         gap: 8,
-        overflowX: 'auto',
+        overflowX: 'hidden',
+        overflowY: 'visible',
         padding: '2px 2px 6px',
-        WebkitOverflowScrolling: 'touch',
       }}
     >
       {rounds.map((round, index) => {

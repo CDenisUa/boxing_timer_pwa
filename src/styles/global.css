@@ -161,6 +161,7 @@ button:active {
 
   .round-tiles {
     flex-direction: column !important;
+    flex-wrap: nowrap !important;
     align-self: stretch;
     justify-content: center;
     overflow-x: hidden !important;

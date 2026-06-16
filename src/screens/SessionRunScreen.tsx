@@ -317,7 +317,10 @@ export const SessionRunScreen = ({ route, navigation }: ScreenProps<'SessionRun'
         flexDirection: 'column',
         justifyContent: 'space-between',
         flex: 1,
-        minHeight: '100%',
+        height: '100dvh',
+        minHeight: '100dvh',
+        overflowY: 'auto',
+        WebkitOverflowScrolling: 'touch',
       }}
     >
       <div
@@ -391,7 +394,7 @@ export const SessionRunScreen = ({ route, navigation }: ScreenProps<'SessionRun'
           padding: '18px 0',
         }}
       >
-        <div className="session-run-rounds">
+        <div className="session-run-rounds" style={{ width: '100%', maxWidth: 388, flex: '0 0 auto' }}>
           <RoundTiles
             rounds={rounds}
             currentRound={engine.currentRound}
