@@ -63,7 +63,10 @@ describe('App navigation flow', () => {
     expect(screen.getByText('Run B')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'All' }));
-    await user.type(screen.getByPlaceholderText('Search saved workouts...'), 'box');
+    const searchInput = screen.getByPlaceholderText('Search saved workouts...');
+    expect(searchInput).toHaveAttribute('autocomplete', 'off');
+    expect(searchInput).toHaveAttribute('autocorrect', 'off');
+    await user.type(searchInput, 'box');
     expect(screen.getByText('Boxing A')).toBeInTheDocument();
     expect(screen.queryByText('Run B')).not.toBeInTheDocument();
   });

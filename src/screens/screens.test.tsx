@@ -38,6 +38,17 @@ describe('SessionEditorScreen', () => {
     expect(nav.goBack).not.toHaveBeenCalled();
   });
 
+  it('keeps the name input free of iOS autofill/autocorrect interference', () => {
+    const nav = fakeNav();
+    renderWithProviders(<SessionEditorScreen {...editorProps(nav)} />);
+
+    const input = screen.getByPlaceholderText('Heavy Bag Drill');
+    expect(input).toHaveAttribute('autocomplete', 'off');
+    expect(input).toHaveAttribute('autocorrect', 'off');
+    expect(input).toHaveAttribute('autocapitalize', 'off');
+    expect(input).toHaveAttribute('spellcheck', 'false');
+  });
+
   it('creates a uniform session', async () => {
     const user = userEvent.setup();
     const nav = fakeNav();

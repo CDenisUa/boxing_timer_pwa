@@ -50,6 +50,14 @@ describe('NumberField', () => {
     fireEvent.change(input, { target: { value: '' } });
     expect(onChange).toHaveBeenLastCalledWith(1); // NaN falls back to min
   });
+
+  it('disables autofill/autocorrect so mobile typing is unobstructed', () => {
+    renderWithTheme(<NumberField label="Rounds" value={3} onChange={vi.fn()} />);
+    const input = screen.getByLabelText('Rounds');
+    expect(input).toHaveAttribute('autocomplete', 'off');
+    expect(input).toHaveAttribute('autocorrect', 'off');
+    expect(input).toHaveAttribute('inputmode', 'numeric');
+  });
 });
 
 describe('SegmentedControl', () => {

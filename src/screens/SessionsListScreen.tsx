@@ -19,6 +19,8 @@ import { SessionCategory } from '@/types/models';
 
 // Utils
 import { confirmAction } from '@/utils/dialog';
+// Consts
+import { plainTextInputProps } from '@/consts/forms';
 
 type FilterValue = 'all' | SessionCategory;
 
@@ -146,6 +148,9 @@ export const SessionsListScreen = ({ navigation }: ScreenProps<'SessionsList'>) 
       >
         <span style={{ fontSize: 16, fontWeight: 900, color: theme.colors.textSubtle }}>Find</span>
         <input
+          {...plainTextInputProps}
+          type="search"
+          enterKeyHint="search"
           value={search}
           onChange={(event) => setSearch(event.target.value)}
           placeholder="Search saved workouts..."

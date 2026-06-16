@@ -4,6 +4,9 @@ import { ChangeEvent, memo, useCallback, useId } from 'react';
 // Theme
 import { useTheme } from '@/theme/ThemeProvider';
 
+// Consts
+import { plainTextInputProps } from '@/consts/forms';
+
 type Props = {
   label: string;
   value: number;
@@ -54,9 +57,11 @@ const NumberFieldComponent = ({ label, value, onChange, min = 1 }: Props) => {
         {label}
       </label>
       <input
+        {...plainTextInputProps}
         id={inputId}
         type="number"
         inputMode="numeric"
+        enterKeyHint="done"
         aria-label={label}
         value={String(value)}
         onChange={handleChange}

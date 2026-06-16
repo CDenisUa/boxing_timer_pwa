@@ -28,6 +28,8 @@ import { RoundConfig, SessionCategory, SoundId } from '@/types/models';
 import { notify } from '@/utils/dialog';
 import { resolveRounds, sumRounds } from '@/utils/rounds';
 import { formatSecondsToClock } from '@/utils/timeFormat';
+// Consts
+import { plainTextInputProps } from '@/consts/forms';
 
 type TimingMode = 'uniform' | 'custom';
 
@@ -276,6 +278,9 @@ export const SessionEditorScreen = ({ navigation, route }: ScreenProps<'SessionE
       <div style={sectionStyle}>
         <span style={labelStyle}>Session Name</span>
         <input
+          {...plainTextInputProps}
+          type="text"
+          enterKeyHint="done"
           value={name}
           onChange={(event) => setName(event.target.value)}
           placeholder="Heavy Bag Drill"
