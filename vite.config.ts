@@ -24,6 +24,9 @@ export default defineConfig({
         navigateFallback: 'index.html',
       },
       manifest: {
+        // Explicit, globally-unique app identity. Without this, iOS derives identity
+        // from start_url ('./' -> '/') and can confuse this app with other root-scoped PWAs.
+        id: '/box-timer',
         name: 'Box Timer',
         short_name: 'Box Timer',
         description: 'Boxing & workout interval timer — rounds, work/rest, sounds and prep countdown.',
